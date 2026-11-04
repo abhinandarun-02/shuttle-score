@@ -13,11 +13,11 @@ import { cn } from "@/lib/utils";
 
 type Filter = "all" | "live" | "upcoming" | "completed";
 
-const FILTERS: { value: Filter; label: string }[] = [
-  { value: "all", label: "All" },
-  { value: "live", label: "Live" },
-  { value: "upcoming", label: "Upcoming" },
-  { value: "completed", label: "Completed" },
+const FILTERS: { value: Filter; label: string; short: string }[] = [
+  { value: "all", label: "All", short: "All" },
+  { value: "live", label: "Live", short: "Live" },
+  { value: "upcoming", label: "Upcoming", short: "Next" },
+  { value: "completed", label: "Completed", short: "Done" },
 ];
 
 const matchesFilter = (m: Match, f: Filter) =>
@@ -67,39 +67,44 @@ export function MatchesScreen() {
       <NextStepCard />
 
       {all.length > 0 && !listLayout && (
-        <div className="flex items-center gap-1 rounded-2xl bg-card p-1 ring-1 ring-border">
-          <div className="grid min-w-0 flex-1 grid-cols-2 gap-1 sm:grid-cols-4" role="tablist" aria-label="Filter matches">
-              {FILTERS.map((f) => {
-                const count = all.filter((m) => matchesFilter(m, f.value)).length;
-                const active = filter === f.value;
-                return (
-                  <button
-                    key={f.value}
-                    type="button"
-                    role="tab"
-                    aria-selected={active}
-                    onClick={() => setFilter(f.value)}
+        <div className="flex items-stretch gap-1 rounded-2xl bg-card p-1 ring-1 ring-border">
+          <div className="@container/filters grid min-w-0 flex-1 grid-cols-4 gap-0.5" role="tablist" aria-label="Filter matches">
+            {FILTERS.map((f) => {
+              const count = all.filter((m) => matchesFilter(m, f.value)).length;
+              const active = filter === f.value;
+              const live = f.value === "live" && count > 0;
+              return (
+                <button
+                  key={f.value}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  aria-label={`${f.label}, ${count}`}
+                  onClick={() => setFilter(f.value)}
+                  className={cn(
+                    "flex min-w-0 flex-col items-center justify-center gap-0.5 rounded-xl px-0.5 py-2 transition-all active:scale-[0.98] sm:h-10 sm:flex-row sm:gap-1.5 sm:px-2 sm:py-0",
+                    active ? "bg-foreground text-background shadow-sm" : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                  )}
+                >
+                  <span className="flex max-w-full items-center gap-1 text-[11px] leading-none font-medium tracking-wide sm:text-sm">
+                    {live && (
+                      <span className={cn("size-1.5 shrink-0 animate-live-pulse rounded-full", active ? "bg-primary" : "bg-brand")} />
+                    )}
+                    <span className="truncate @min-[260px]/filters:hidden sm:hidden">{f.short}</span>
+                    <span className="hidden truncate @min-[260px]/filters:inline sm:inline">{f.label}</span>
+                  </span>
+                  <span
                     className={cn(
-                      "inline-flex h-10 min-w-0 items-center justify-center gap-1.5 rounded-xl px-2 text-sm font-medium whitespace-nowrap transition-all active:scale-[0.98]",
-                      active ? "bg-foreground text-background shadow-sm" : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                      "text-[15px] leading-none font-semibold tabular-nums sm:grid sm:h-5 sm:min-w-5 sm:place-items-center sm:rounded-full sm:px-1 sm:text-[11px]",
+                      active ? "text-background sm:bg-background/15" : "text-foreground sm:bg-muted sm:text-muted-foreground",
                     )}
                   >
-                    {f.value === "live" && count > 0 && (
-                      <span className={cn("size-1.5 animate-live-pulse rounded-full", active ? "bg-primary" : "bg-brand")} />
-                    )}
-                    {f.label}
-                    <span
-                      className={cn(
-                        "grid h-5 min-w-5 place-items-center rounded-full px-1 text-[11px] font-semibold tabular-nums",
-                        active ? "bg-background/15 text-background" : "bg-muted text-muted-foreground",
-                      )}
-                    >
-                      {count}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
           {roundRobin && <LayoutToggle layout={layout} onChange={setLayout} divided />}
         </div>
       )}
@@ -159,7 +164,7 @@ function LayoutToggle({
   return (
     <div
       className={cn(
-        "inline-flex shrink-0 gap-0.5",
+        "inline-flex shrink-0 items-center gap-0.5",
         divided ? "border-l border-border pl-1" : "rounded-xl bg-card p-0.5 ring-1 ring-border",
       )}
       role="tablist"
