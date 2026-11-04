@@ -68,7 +68,11 @@ export function TournamentChrome({ children }: { children: ReactNode }) {
   const active = pathname.replace(`/t/${code}`, "") || "";
 
   return (
-    <div className="flex min-h-dvh flex-col">
+    <div className="relative flex min-h-dvh flex-col">
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 top-0 z-0 h-80 bg-[radial-gradient(ellipse_at_top,var(--brand-soft),transparent_68%)]"
+      />
       <header className="pt-safe sticky top-0 z-30 border-b border-transparent bg-background/80 backdrop-blur-xl supports-backdrop-filter:bg-background/70">
         <div className="mx-auto flex h-16 w-full max-w-3xl items-center gap-1.5 px-2 sm:px-4">
           <Button variant="ghost" size="icon-xl" render={<Link href="/" />} nativeButton={false} aria-label="Home">
@@ -127,7 +131,7 @@ export function TournamentChrome({ children }: { children: ReactNode }) {
         )}
       </header>
 
-      <main className="mx-auto w-full max-w-3xl flex-1 px-4 pt-3 pb-32 md:pb-16">{children}</main>
+      <main className="relative z-10 mx-auto w-full max-w-3xl flex-1 px-4 pt-3 pb-32 md:pb-16">{children}</main>
 
       <nav
         className="pb-safe fixed inset-x-0 bottom-0 z-30 border-t bg-background/85 backdrop-blur-xl md:hidden"

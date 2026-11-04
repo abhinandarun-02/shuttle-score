@@ -51,7 +51,7 @@ export function MatchesScreen() {
       <NextStepCard />
 
       {all.length > 0 && (
-        <div className="flex flex-wrap gap-2" role="tablist" aria-label="Filter matches">
+        <div className="grid grid-cols-2 gap-1 rounded-2xl bg-card p-1 ring-1 ring-border sm:grid-cols-4" role="tablist" aria-label="Filter matches">
           {FILTERS.map((f) => {
             const count = all.filter((m) => matchesFilter(m, f.value)).length;
             const active = filter === f.value;
@@ -63,15 +63,22 @@ export function MatchesScreen() {
                 aria-selected={active}
                 onClick={() => setFilter(f.value)}
                 className={cn(
-                  "inline-flex h-10 shrink-0 items-center gap-2 rounded-full px-4 text-sm font-medium transition-all active:scale-95",
-                  active ? "bg-foreground text-background" : "bg-muted text-muted-foreground hover:text-foreground",
+                  "inline-flex h-10 min-w-0 items-center justify-center gap-1.5 rounded-xl px-2 text-sm font-medium whitespace-nowrap transition-all active:scale-[0.98]",
+                  active ? "bg-foreground text-background shadow-sm" : "text-muted-foreground hover:bg-muted hover:text-foreground",
                 )}
               >
                 {f.value === "live" && count > 0 && (
                   <span className={cn("size-1.5 animate-live-pulse rounded-full", active ? "bg-primary" : "bg-brand")} />
                 )}
                 {f.label}
-                <span className={cn("tabular-nums", active ? "opacity-60" : "opacity-70")}>{count}</span>
+                <span
+                  className={cn(
+                    "grid h-5 min-w-5 place-items-center rounded-full px-1 text-[11px] font-semibold tabular-nums",
+                    active ? "bg-background/15 text-background" : "bg-muted text-muted-foreground",
+                  )}
+                >
+                  {count}
+                </span>
               </button>
             );
           })}
@@ -88,8 +95,14 @@ export function MatchesScreen() {
         <div className="space-y-6">
           {sections.map((s, i) => (
             <section key={`${s.label}-${i}`}>
-              <h3 className="mb-2.5 px-1 text-[13px] font-semibold tracking-wide text-muted-foreground uppercase">{s.label}</h3>
-              <div className="grid gap-2.5 sm:grid-cols-2">
+              <div className="mb-3 flex items-center gap-3 px-1">
+                <h3 className="text-[13px] font-semibold tracking-[0.14em] text-foreground uppercase">{s.label}</h3>
+                <span className="h-px flex-1 bg-border" />
+                <span className="text-[12px] font-medium text-muted-foreground tabular-nums">
+                  {s.matches.length} {s.matches.length === 1 ? "match" : "matches"}
+                </span>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
                 {s.matches.map((m) => (
                   <MatchCard key={m.id} match={m} ctx={ctx} showRound={false} />
                 ))}

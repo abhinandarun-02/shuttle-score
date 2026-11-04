@@ -4,6 +4,7 @@ import { ArrowRightIcon, Loader2Icon, PlayIcon, ShuffleIcon, SparklesIcon, Troph
 import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
+import { SideMark } from "@/components/tournament/match-card";
 import { LiveDot } from "@/components/tournament/status-pill";
 import { useTournament } from "@/components/tournament/tournament-context";
 import {
@@ -175,21 +176,31 @@ export function ChampionCard() {
 function MatchLine({ match }: { match: Match }) {
   const { view, href } = useTournament();
   const ctx = roundContext(view.matches);
+  const nameA = view.nameOf(match.a);
+  const nameB = view.nameOf(match.b);
   return (
     <Link
       href={href(`/m/${match.id}`)}
-      className="flex items-center gap-3 rounded-2xl bg-muted/70 px-4 py-3 transition-colors hover:bg-muted active:scale-[0.99]"
+      className="group flex items-center gap-3 rounded-2xl bg-muted/80 px-3 py-3 ring-1 ring-border transition-colors hover:bg-muted active:scale-[0.99]"
     >
+      <div className="flex shrink-0 -space-x-2">
+        <SideMark id={match.a} name={nameA} className="size-9 rounded-xl text-[12px] ring-2 ring-card" />
+        <SideMark id={match.b} name={nameB} className="size-9 rounded-xl text-[12px] ring-2 ring-card" />
+      </div>
       <div className="min-w-0 flex-1">
-        <p className="truncate font-medium">
-          {view.nameOf(match.a)} <span className="text-muted-foreground">vs</span> {view.nameOf(match.b)}
+        <p className="truncate text-[15px] font-semibold tracking-tight">
+          {nameA}
+          <span className="mx-1.5 text-[12px] font-medium tracking-wide text-muted-foreground">vs</span>
+          {nameB}
         </p>
-        <p className="text-[13px] text-muted-foreground">
+        <p className="mt-0.5 text-[12px] text-muted-foreground">
           {roundLabel(match, ctx)}
           {match.court ? ` · Court ${match.court}` : ""}
         </p>
       </div>
-      <ArrowRightIcon className="size-4 shrink-0 text-muted-foreground" />
+      <span className="grid size-8 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground transition-transform duration-200 group-hover:translate-x-0.5">
+        <ArrowRightIcon className="size-3.5" />
+      </span>
     </Link>
   );
 }
