@@ -1,0 +1,203 @@
+rules_version = '2';
+
+// Shuttle access model
+// --------------------
+// There are no accounts. Every browser is silently signed in with Firebase Anonymous Auth and,
+// in production, must pass Firebase App Check (enforced in the Firebase console).
+// A tournament's 6-character code is its document ID. Tournaments can be fetched by code but
+// never listed, so codes cannot be enumerated through the API. Anyone who knows a code can view
+// and edit that tournament: the code is a shared bearer secret, NOT strong authorization.
+// These rules bound the damage: strict schemas, score bounds, version-checked match updates,
+// append-only score history and creator-only tournament deletion.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function tournamentPath(code) {
+      return /databases/$(database)/documents/tournaments/$(code);
+    }
+
+    function validText(value, max) {
+      return value is string && value.size() >= 1 && value.size() <= max;
+    }
+
+    function validCategories(cats) {
+      return cats == ['singles'] || cats == ['doubles'] || cats == ['singles', 'doubles'];
+    }
+
+    function validCategoryState(s) {
+      return s is map
+        && s.keys().hasOnly(['phase', 'teamsConfirmed', 'championId', 'groupCount', 'qualifiersPerGroup'])
+        && s.keys().hasAll(['phase', 'teamsConfirmed'])
+        && s.phase in ['registration', 'playing', 'knockout']
+        && s.teamsConfirmed is bool
+        && (s.get('championId', null) == null || validText(s.championId, 40))
+        && (s.get('groupCount', null) == null || (s.groupCount is int && s.groupCount >= 1 && s.groupCount <= 32))
+        && (s.get('qualifiersPerGroup', null) == null || (s.qualifiersPerGroup is int && s.qualifiersPerGroup >= 1 && s.qualifiersPerGroup <= 2));
+    }
+
+    function validState(state, cats) {
+      return state is map
+        && state.keys().hasOnly(cats)
+        && state.keys().hasAll(cats)
+        && (!('singles' in state) || validCategoryState(state.singles))
+        && (!('doubles' in state) || validCategoryState(state.doubles));
+    }
+
+    match /tournaments/{code} {
+      allow get: if signedIn();
+      allow list: if false;
+
+      allow create: if signedIn()
+        && code.matches('^[A-HJ-NP-Z2-9]{6}$')
+        && request.resource.data.keys().hasOnly(['code', 'name', 'categories', 'format', 'createdAt', 'createdBy', 'state'])
+        && request.resource.data.code == code
+        && validText(request.resource.data.name, 60)
+        && validCategories(request.resource.data.categories)
+        && request.resource.data.format in ['round_robin', 'groups', 'knockout', 'double_elim']
+        && request.resource.data.createdAt is int
+        && request.resource.data.createdBy == request.auth.uid
+        && validState(request.resource.data.state, request.resource.data.categories);
+
+      allow update: if signedIn()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'state'])
+        && validText(request.resource.data.name, 60)
+        && validState(request.resource.data.state, resource.data.categories);
+
+      allow delete: if signedIn() && resource.data.createdBy == request.auth.uid;
+
+      function tournament() {
+        return get(tournamentPath(code)).data;
+      }
+
+      function hasCategory(cat) {
+        return cat in tournament().categories;
+      }
+
+      function registrationOpen(cat) {
+        return hasCategory(cat) && tournament().state[cat].phase == 'registration';
+      }
+
+      match /players/{playerId} {
+        allow read: if signedIn() && exists(tournamentPath(code));
+
+        allow create: if signedIn()
+          && request.resource.data.keys().hasOnly(['name', 'category', 'createdAt'])
+          && validText(request.resource.data.name, 40)
+          && request.resource.data.category in ['singles', 'doubles']
+          && request.resource.data.createdAt is int
+          && registrationOpen(request.resource.data.category);
+
+        allow update: if signedIn()
+          && exists(tournamentPath(code))
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name'])
+          && validText(request.resource.data.name, 40);
+
+        allow delete: if signedIn() && registrationOpen(resource.data.category);
+      }
+
+      match /teams/{teamId} {
+        allow read: if signedIn() && exists(tournamentPath(code));
+
+        allow create, update: if signedIn()
+          && request.resource.data.keys().hasOnly(['category', 'playerIds', 'order'])
+          && request.resource.data.category == 'doubles'
+          && request.resource.data.playerIds is list
+          && request.resource.data.playerIds.size() == 2
+          && validText(request.resource.data.playerIds[0], 40)
+          && validText(request.resource.data.playerIds[1], 40)
+          && request.resource.data.playerIds[0] != request.resource.data.playerIds[1]
+          && request.resource.data.order is int
+          && request.resource.data.order >= 0
+          && request.resource.data.order < 100
+          && registrationOpen('doubles');
+
+        allow delete: if signedIn() && registrationOpen('doubles');
+      }
+
+      match /matches/{matchId} {
+        function validGame(g) {
+          return g is map
+            && g.keys().hasOnly(['a', 'b'])
+            && g.a is int && g.b is int
+            && g.a >= 0 && g.a <= 30
+            && g.b >= 0 && g.b <= 30;
+        }
+
+        function validGames(gs) {
+          return gs is list
+            && gs.size() <= 3
+            && (gs.size() < 1 || validGame(gs[0]))
+            && (gs.size() < 2 || validGame(gs[1]))
+            && (gs.size() < 3 || validGame(gs[2]));
+        }
+
+        function validSide(v) {
+          return v == null || validText(v, 40);
+        }
+
+        function validLink(l) {
+          return l == null
+            || (l is map && l.keys().hasOnly(['matchId', 'side']) && validText(l.matchId, 80) && l.side in ['A', 'B']);
+        }
+
+        function validMatch(d) {
+          return d.keys().hasOnly(['category', 'stage', 'round', 'slot', 'group', 'order', 'a', 'b', 'games', 'status',
+              'winner', 'bye', 'endedEarly', 'court', 'nextWinner', 'nextLoser', 'version', 'undo', 'updatedAt'])
+            && d.category in ['singles', 'doubles']
+            && d.stage in ['rr', 'group', 'ko', 'wb', 'lb', 'gf']
+            && d.round is int && d.slot is int && d.order is int
+            && (d.group == null || d.group is int)
+            && validSide(d.a) && validSide(d.b)
+            && validGames(d.games)
+            && d.status in ['waiting', 'upcoming', 'live', 'completed']
+            && (d.winner == null || d.winner in ['A', 'B'])
+            && d.bye is bool && d.endedEarly is bool
+            && (d.court == null || (d.court is string && d.court.size() <= 12))
+            && validLink(d.nextWinner) && validLink(d.nextLoser)
+            && d.version is int
+            && d.undo is list && d.undo.size() <= 250
+            && d.updatedAt is int;
+        }
+
+        allow read: if signedIn() && exists(tournamentPath(code));
+
+        allow create: if signedIn()
+          && validMatch(request.resource.data)
+          && request.resource.data.version == 0
+          && hasCategory(request.resource.data.category);
+
+        // Every score change must bump the version by exactly one (optimistic concurrency);
+        // only the court label may change without a version bump.
+        allow update: if signedIn()
+          && validMatch(request.resource.data)
+          && request.resource.data.category == resource.data.category
+          && request.resource.data.stage == resource.data.stage
+          && request.resource.data.nextWinner == resource.data.nextWinner
+          && request.resource.data.nextLoser == resource.data.nextLoser
+          && (request.resource.data.version == resource.data.version + 1
+            || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['court', 'updatedAt']));
+
+        allow delete: if signedIn() && exists(tournamentPath(code));
+
+        // Score history is append-only.
+        match /events/{eventId} {
+          allow read: if signedIn() && exists(tournamentPath(code));
+          allow create: if signedIn()
+            && request.resource.data.keys().hasOnly(['type', 'side', 'games', 'version', 'by', 'at'])
+            && request.resource.data.type in ['point', 'undo', 'correct', 'end']
+            && (request.resource.data.side == null || request.resource.data.side in ['A', 'B'])
+            && validGames(request.resource.data.games)
+            && request.resource.data.version is int
+            && request.resource.data.by == request.auth.uid
+            && request.resource.data.at == request.time;
+          allow update, delete: if false;
+        }
+      }
+    }
+  }
+}

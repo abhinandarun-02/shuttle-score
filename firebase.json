@@ -1,0 +1,35 @@
+{
+  "firestore": {
+    "database": "(default)",
+    "location": "asia-south1",
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "emulators": {
+    "auth": {
+      "host": "0.0.0.0",
+      "port": 9199
+    },
+    "firestore": {
+      "host": "0.0.0.0",
+      "port": 8181
+    },
+    "ui": {
+      "enabled": true,
+      "host": "0.0.0.0",
+      "port": 4421
+    },
+    "hub": {
+      "port": 4422
+    },
+    "logging": {
+      "port": 4423
+    },
+    "singleProjectMode": true
+  },
+  "auth": {
+    "providers": {
+      "anonymous": true
+    }
+  }
+}
