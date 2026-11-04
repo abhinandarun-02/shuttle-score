@@ -41,7 +41,7 @@ Two people tapping the same rally at once cannot both count: each write carries 
 
 The app has no backend of its own. Deploy the Next.js app to Vercel and point it at a Firebase project.
 
-1. Create a Firebase project and a **web app**. Enable **Cloud Firestore**, **Authentication → Anonymous**, and **App Check** with reCAPTCHA v3.
+1. Create a Firebase project and a **web app**. Enable **Cloud Firestore** and **Authentication → Anonymous**.
 2. Copy `.env.example` to `.env.local` (or to the Vercel project settings) and fill in:
 
    ```
@@ -49,7 +49,6 @@ The app has no backend of its own. Deploy the Next.js app to Vercel and point it
    NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
    NEXT_PUBLIC_FIREBASE_PROJECT_ID
    NEXT_PUBLIC_FIREBASE_APP_ID
-   NEXT_PUBLIC_RECAPTCHA_SITE_KEY
    ```
 
 3. Register `localhost` as an allowed domain for Auth, and add your Vercel domain too.
@@ -60,19 +59,18 @@ The app has no backend of its own. Deploy the Next.js app to Vercel and point it
    npx firebase deploy --only firestore:rules --project YOUR_PROJECT_ID
    ```
 
-5. In the App Check console, enforce App Check for Cloud Firestore and Authentication. For local testing against the real project, set `NEXT_PUBLIC_APPCHECK_DEBUG=true`, load the app once, and register the debug token the console prints.
-6. Import the repository in Vercel and deploy. `npm run build` is the build command.
+5. Import the repository in Vercel and deploy. `npm run build` is the build command.
 
 To force the emulators even when those variables are present, set `NEXT_PUBLIC_USE_FIREBASE_EMULATOR=true`.
 
 ## How access works, and what it does not protect
 
-There are no accounts and no login screen. Each browser signs in silently with Firebase Anonymous Auth, which exists only so security rules can require `request.auth != null` and so App Check can be enforced. Nobody sees it.
+There are no accounts and no login screen. Each browser signs in silently with Firebase Anonymous Auth, which exists only so security rules can require `request.auth != null`. Nobody sees it.
 
 A tournament's code is its document id. The rules allow reading one tournament by its exact code and **forbid listing tournaments**, so codes cannot be walked through the API. The code is six characters from a 32-symbol alphabet with no look-alike letters (about a billion combinations).
 
 **Anyone who has the link or the code can view the tournament, edit players, and change scores.** The code is a shared secret for the people in the hall, not an authorization system. Do not put anything private in a tournament. Treat a leaked link as a leaked tournament: there is no way to revoke a single person without changing the code, and the code cannot be changed.
 
-The rules do limit the blast radius. Writes must match a strict schema, scores are capped at 30, match updates must increment a version (so a score cannot be silently overwritten), the score history is append-only, and only the anonymous user who created a tournament can delete it. App Check, when enforced in the Firebase console, rejects clients that are not the real web app.
+The rules do limit the blast radius. Writes must match a strict schema, scores are capped at 30, match updates must increment a version (so a score cannot be silently overwritten), the score history is append-only, and only the anonymous user who created a tournament can delete it.
 
 These rules do not stop a determined person who already knows a code, or who copies a signed-in session, from modifying that tournament. That is an accepted limit of a no-login design.

@@ -1,7 +1,6 @@
 "use client";
 
 import { getApps, initializeApp, type FirebaseApp } from "firebase/app";
-import { initializeAppCheck, ReCaptchaV3Provider } from "firebase/app-check";
 import {
   connectAuthEmulator,
   getAuth,
@@ -31,9 +30,6 @@ export const EMULATOR_PROJECT_ID = "demo-shuttle";
 export const usingEmulator =
   process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATOR === "true" || !config.apiKey || !config.projectId;
 
-const recaptchaSiteKey = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY;
-const appCheckDebug = process.env.NEXT_PUBLIC_APPCHECK_DEBUG === "true";
-
 interface Services {
   app: FirebaseApp;
   db: Firestore;
@@ -42,7 +38,6 @@ interface Services {
 
 declare global {
   var __shuttleFirebase: Services | undefined;
-  var FIREBASE_APPCHECK_DEBUG_TOKEN: boolean | string | undefined;
 }
 
 function createServices(): Services {
@@ -58,14 +53,6 @@ function createServices(): Services {
           }
         : config,
     );
-
-  if (!usingEmulator && recaptchaSiteKey) {
-    if (appCheckDebug) self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
-    initializeAppCheck(app, {
-      provider: new ReCaptchaV3Provider(recaptchaSiteKey),
-      isTokenAutoRefreshEnabled: true,
-    });
-  }
 
   let db: Firestore;
   try {

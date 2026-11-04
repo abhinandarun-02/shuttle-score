@@ -2,8 +2,7 @@ rules_version = '2';
 
 // Shuttle access model
 // --------------------
-// There are no accounts. Every browser is silently signed in with Firebase Anonymous Auth and,
-// in production, must pass Firebase App Check (enforced in the Firebase console).
+// There are no accounts. Every browser is silently signed in with Firebase Anonymous Auth.
 // A tournament's 6-character code is its document ID. Tournaments can be fetched by code but
 // never listed, so codes cannot be enumerated through the API. Anyone who knows a code can view
 // and edit that tournament: the code is a shared bearer secret, NOT strong authorization.
