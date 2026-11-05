@@ -1,10 +1,12 @@
 "use client";
 
-import { ArrowLeftIcon, CloudOffIcon, FlagIcon, MinusIcon, PencilIcon, PlusIcon, RotateCcwIcon, TrophyIcon } from "lucide-react";
+import { ArrowLeftIcon, CloudOffIcon, FlagIcon, MapPinIcon, MinusIcon, PencilIcon, PlusIcon, RotateCcwIcon, TrophyIcon } from "lucide-react";
 import Link from "next/link";
 import { use, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { BottomSheet } from "@/components/bottom-sheet";
+import { ShuttleGlyph } from "@/components/logo";
+import { sideMonogram } from "@/components/tournament/match-card";
 import { MatchStatusPill } from "@/components/tournament/status-pill";
 import { useTournament } from "@/components/tournament/tournament-context";
 import { Button } from "@/components/ui/button";
@@ -119,20 +121,28 @@ function ScoringView({
   };
 
   return (
-    <div className="flex min-h-dvh flex-col">
+    <div className="flex h-dvh flex-col overflow-hidden">
       <header className="pt-safe sticky top-0 z-10 bg-background/85 backdrop-blur-xl">
         <div className="mx-auto flex h-16 w-full max-w-lg items-center gap-1 px-2">
           <Button variant="ghost" size="icon-xl" render={<Link href={back} />} nativeButton={false} aria-label="Back to matches">
             <ArrowLeftIcon />
           </Button>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-[15px] font-semibold tracking-tight">{roundLabel(match, ctx)}</p>
+            <p className="truncate text-[15px] font-semibold tracking-tight">
+              {roundLabel(match, ctx)}
+              {singleGame && (
+                <span className="ml-2 font-mono text-[12px] font-medium text-muted-foreground tabular-nums">
+                  to {rules.pointsToWin}
+                </span>
+              )}
+            </p>
             <button
               type="button"
               onClick={() => setCourtOpen(true)}
-              className="text-[13px] text-muted-foreground hover:text-foreground"
+              className="mt-0.5 inline-flex max-w-full items-center gap-1 truncate rounded-full bg-muted px-2 py-0.5 text-[12px] font-medium text-muted-foreground hover:text-foreground"
             >
-              {match.court ? `Court ${match.court}` : "Add court"}
+              <MapPinIcon className="size-3 shrink-0" />
+              <span className="truncate">{match.court ? `Court ${match.court}` : "Add court"}</span>
             </button>
           </div>
           <MatchStatusPill status={match.status} />
@@ -154,84 +164,108 @@ function ScoringView({
         )}
       </header>
 
-      <main className="mx-auto flex w-full max-w-lg flex-1 flex-col px-4 pt-4 pb-44">
-        {!singleGame && (
-          <div className="flex items-center justify-center gap-2" aria-label={`Game ${gameNo}`}>
-            {Array.from({ length: gameSlots }, (_, i) => (
-              <span key={`a${i}`} className={cn("size-2 rounded-full", won.a > i ? "bg-primary" : "bg-muted")} />
+      <main className="mx-auto flex w-full max-w-lg min-h-0 flex-1 flex-col gap-3 px-3 pt-1 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+        {(!singleGame || previous.length > 0 || scorer.syncing) && (
+          <div className="flex flex-wrap items-center justify-center gap-1.5">
+            {!singleGame && (
+              <div className="flex items-center gap-2 rounded-full bg-card px-3 py-1.5 ring-1 ring-foreground/10" aria-label={finished ? "Match" : `Game ${gameNo}`}>
+                {Array.from({ length: gameSlots }, (_, i) => (
+                  <span key={`a${i}`} className={cn("size-2 rounded-full", won.a > i ? "bg-primary" : "bg-muted")} />
+                ))}
+                <span className="text-[13px] font-semibold tracking-tight">{finished ? "Match" : `Game ${gameNo}`}</span>
+                {Array.from({ length: gameSlots }, (_, i) => (
+                  <span key={`b${i}`} className={cn("size-2 rounded-full", won.b > i ? "bg-foreground" : "bg-muted")} />
+                ))}
+              </div>
+            )}
+            {!singleGame && (
+              <span className="rounded-full bg-muted px-2.5 py-1.5 font-mono text-[12px] font-medium text-muted-foreground tabular-nums">
+                to {rules.pointsToWin}
+              </span>
+            )}
+            {previous.map((g, i) => (
+              <span key={i} className="rounded-full bg-card px-2.5 py-1.5 font-mono text-[12px] font-medium text-muted-foreground tabular-nums ring-1 ring-foreground/10">
+                {g.a}–{g.b}
+              </span>
             ))}
-            <span className="px-2 text-sm font-medium text-muted-foreground">
-              {finished ? "Match" : `Game ${gameNo}`}
-            </span>
-            {Array.from({ length: gameSlots }, (_, i) => (
-              <span key={`b${i}`} className={cn("size-2 rounded-full", won.b > i ? "bg-foreground" : "bg-muted")} />
-            ))}
+            {scorer.syncing && <span className="text-[12px] font-medium text-muted-foreground">Saving…</span>}
           </div>
-        )}
-
-        {previous.length > 0 && !finished && (
-          <p className="mt-3 text-center font-mono text-sm text-muted-foreground tabular-nums">
-            {previous.map((g) => `${g.a}–${g.b}`).join("  ·  ")}
-          </p>
         )}
 
         {waiting ? (
-          <div className="flex flex-1 flex-col items-center justify-center text-center">
-            <p className="text-lg font-semibold">Waiting on an earlier match</p>
-            <p className="mt-1 text-muted-foreground">This one opens as soon as both sides are decided.</p>
+          <div className="flex flex-1 flex-col items-center justify-center rounded-[28px] bg-card px-6 text-center ring-1 ring-foreground/10">
+            <ShuttleGlyph className="mb-4 size-10 text-brand" />
+            <p className="text-lg font-semibold tracking-tight">Waiting on an earlier match</p>
+            <p className="mt-1 max-w-xs text-muted-foreground">This one opens as soon as both sides are decided.</p>
           </div>
         ) : (
-          <div className="mt-6 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
-            <ScoreBlock name={view.nameOf(match.a)} score={headlineA} side="A" winner={match.winner === "A"} dim={finished && match.winner !== "A"} games={detailGames} />
-            <span className="pb-8 text-sm font-medium text-muted-foreground">vs</span>
-            <ScoreBlock name={view.nameOf(match.b)} score={headlineB} side="B" winner={match.winner === "B"} dim={finished && match.winner !== "B"} games={detailGames} />
+          <div className="relative grid min-h-0 flex-1 grid-rows-2 gap-2.5">
+            <SideCourt
+              side="A"
+              name={view.nameOf(match.a)}
+              score={headlineA}
+              games={detailGames}
+              winner={match.winner === "A"}
+              dim={finished && match.winner !== "A"}
+              canScore={canScore}
+              showGamesWon={finished && !singleGame}
+              onPoint={() => point("A")}
+            />
+            <div className="pointer-events-none absolute inset-x-0 top-1/2 z-10 flex -translate-y-1/2 justify-center">
+              <span className="rounded-full bg-background px-2.5 py-1 text-[10px] font-bold tracking-[0.18em] text-muted-foreground ring-1 ring-border">
+                VS
+              </span>
+            </div>
+            <SideCourt
+              side="B"
+              name={view.nameOf(match.b)}
+              score={headlineB}
+              games={detailGames}
+              winner={match.winner === "B"}
+              dim={finished && match.winner !== "B"}
+              canScore={canScore}
+              showGamesWon={finished && !singleGame}
+              onPoint={() => point("B")}
+            />
           </div>
         )}
 
         {finished && (
-          <div className="mt-8 animate-rise rounded-3xl bg-primary px-5 py-5 text-primary-foreground">
-            <p className="flex items-center gap-2 text-sm font-semibold tracking-wide uppercase opacity-70">
-              <TrophyIcon className="size-4" />
-              {match.endedEarly ? "Match awarded" : "Match won"}
-            </p>
-            <p className="mt-1 text-2xl font-semibold tracking-tight">{view.nameOf(match.winner === "A" ? match.a : match.b)}</p>
-            <p className="mt-1 font-mono text-sm tabular-nums opacity-80">
-              {match.games.filter((g) => gameWinner(g, rules) || g.a + g.b > 0).map((g) => `${g.a}–${g.b}`).join("  ·  ") || "No games played"}
+          <div className="flex animate-rise items-center gap-3 rounded-2xl bg-card px-3.5 py-3 ring-1 ring-foreground/10">
+            <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary text-primary-foreground">
+              <TrophyIcon className="size-5" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
+                {match.endedEarly ? "Match awarded" : "Match won"}
+              </p>
+              <p className="truncate font-semibold tracking-tight">{view.nameOf(match.winner === "A" ? match.a : match.b)}</p>
+            </div>
+            <p className="font-mono text-sm text-muted-foreground tabular-nums">
+              {match.games.filter((g) => gameWinner(g, rules) || g.a + g.b > 0).map((g) => `${g.a}–${g.b}`).join(" · ") || "—"}
             </p>
           </div>
         )}
 
-        {scorer.syncing && <p className="mt-4 text-center text-[13px] text-muted-foreground">Saving…</p>}
-      </main>
-
-      {!waiting && (
-        <div className="pb-safe fixed inset-x-0 bottom-0 z-20 bg-gradient-to-t from-background via-background to-transparent pt-8">
-          <div className="mx-auto w-full max-w-lg px-3 pb-3">
-            {!finished && (
-              <div className="grid grid-cols-2 gap-2">
-                <PointButton side="A" name={view.nameOf(match.a)} disabled={!canScore} onClick={() => point("A")} />
-                <PointButton side="B" name={view.nameOf(match.b)} disabled={!canScore} onClick={() => point("B")} />
-              </div>
-            )}
-            <div className={cn("grid grid-cols-2 gap-2", !finished && "mt-2")}>
-              <Button size="lg" variant="ghost" className="h-12 text-muted-foreground" onClick={() => setCorrectOpen(true)} disabled={waiting}>
-                <PencilIcon />
-                Correct score
+        {!waiting && (
+          <div className="grid grid-cols-2 gap-2">
+            <Button size="xl" variant="secondary" onClick={() => setCorrectOpen(true)}>
+              <PencilIcon />
+              Correct score
+            </Button>
+            {finished ? (
+              <Button size="xl" render={<Link href={back} />} nativeButton={false}>
+                Back to matches
               </Button>
-              {finished ? (
-                <Button size="lg" variant="secondary" className="h-12" render={<Link href={back} />} nativeButton={false}>
-                  Back to matches
-                </Button>
-              ) : (
-                <Button size="lg" variant="ghost" className="h-12 text-muted-foreground" onClick={() => setEndOpen(true)} disabled={!canScore}>
-                  <FlagIcon />
-                  End match
-                </Button>
-              )}
-            </div>
+            ) : (
+              <Button size="xl" variant="outline" onClick={() => setEndOpen(true)} disabled={!canScore}>
+                <FlagIcon />
+                End match
+              </Button>
+            )}
           </div>
-        </div>
-      )}
+        )}
+      </main>
 
       <CorrectSheet open={correctOpen} onOpenChange={setCorrectOpen} match={match} rules={rules} onSave={(games) => scorer.correct(games)} />
       <EndSheet
@@ -248,55 +282,83 @@ function ScoringView({
   );
 }
 
-function ScoreBlock({
+function SideCourt({
+  side,
   name,
   score,
-  side,
+  games,
   winner,
   dim,
-  games,
+  canScore,
+  showGamesWon,
+  onPoint,
 }: {
+  side: Side;
   name: string;
   score: number;
-  side: Side;
+  games: GameScore[];
   winner: boolean;
   dim: boolean;
-  games: GameScore[];
+  canScore: boolean;
+  showGamesWon: boolean;
+  onPoint: () => void;
 }) {
-  return (
-    <div className={cn("flex flex-col items-center gap-1 text-center", dim && "opacity-45")}>
-      <span className="line-clamp-2 min-h-10 text-[15px] leading-tight font-semibold">{name}</span>
-      <span
-        key={`${side}-${score}`}
-        className={cn(
-          "animate-score-pop font-mono text-7xl leading-none font-semibold tracking-tighter tabular-nums [font-feature-settings:normal] sm:text-8xl",
-          winner && "text-brand",
-        )}
-      >
-        {score}
-      </span>
-      {games.length > 0 && (
-        <span className="mt-1 font-mono text-xs text-muted-foreground tabular-nums">
-          {games.map((g) => (side === "A" ? g.a : g.b)).join(" ")}
-        </span>
-      )}
-    </div>
-  );
-}
-
-function PointButton({ side, name, disabled, onClick }: { side: Side; name: string; disabled: boolean; onClick: () => void }) {
+  const marks = games.map((g) => (side === "A" ? g.a : g.b));
   return (
     <button
       type="button"
-      disabled={disabled}
-      onClick={onClick}
+      disabled={!canScore}
+      onClick={onPoint}
+      aria-label={canScore ? `Point for ${name}` : `${name}, ${score}`}
       className={cn(
-        "flex h-24 flex-col items-center justify-center gap-0.5 rounded-3xl text-center transition-transform select-none active:scale-[0.97] disabled:opacity-40",
-        side === "A" ? "bg-primary text-primary-foreground" : "bg-foreground text-background",
+        "relative flex h-full min-h-36 flex-col overflow-hidden rounded-[28px] px-4 py-4 text-left ring-1 transition-transform select-none disabled:opacity-100",
+        side === "A"
+          ? "bg-primary text-primary-foreground shadow-[inset_0_1px_0_rgb(255_255_255/0.45)] ring-black/10"
+          : "bg-foreground text-background shadow-[inset_0_1px_0_rgb(255_255_255/0.16)] ring-white/10",
+        canScore && "cursor-pointer active:scale-[0.985]",
+        dim && "opacity-50",
       )}
     >
-      <span className="text-sm font-semibold tracking-wide uppercase opacity-70">+1 point</span>
-      <span className="max-w-full truncate px-3 text-lg font-semibold">{name}</span>
+      <ShuttleGlyph className="pointer-events-none absolute -right-6 -bottom-8 size-40 rotate-12 opacity-[0.14]" />
+      <div className="pointer-events-none absolute -top-16 -left-10 size-40 rounded-full bg-white/25 blur-3xl" />
+      <div className="relative flex items-center gap-3">
+        <span
+          className={cn(
+            "grid size-11 shrink-0 place-items-center rounded-2xl text-sm font-semibold tracking-tight",
+            side === "A" ? "bg-primary-foreground/10" : "bg-background/15",
+          )}
+          aria-hidden
+        >
+          {sideMonogram(name)}
+        </span>
+        <span className="line-clamp-2 min-w-0 flex-1 text-[17px] leading-tight font-semibold tracking-tight">{name}</span>
+        {winner && (
+          <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-background/15 px-2 py-1 text-[11px] font-semibold tracking-wide uppercase">
+            <TrophyIcon className="size-3.5" />
+            Won
+          </span>
+        )}
+      </div>
+      <div className="relative flex flex-1 items-center justify-center">
+        <span
+          key={`${side}-${score}`}
+          className="animate-score-pop text-[clamp(5rem,22vw,7.75rem)] leading-none font-semibold tracking-tighter tabular-nums"
+        >
+          {score}
+        </span>
+      </div>
+      <div className="relative flex items-end justify-between gap-3">
+        <span className="font-mono text-sm tabular-nums opacity-70">
+          {showGamesWon ? "games" : marks.length > 0 ? marks.join("  ") : "\u00a0"}
+        </span>
+        {canScore ? (
+          <span className="text-[13px] font-semibold tracking-wide uppercase opacity-70">+1 point</span>
+        ) : (
+          showGamesWon && marks.length > 0 && (
+            <span className="font-mono text-sm tabular-nums opacity-70">{marks.join("  ")}</span>
+          )
+        )}
+      </div>
     </button>
   );
 }
