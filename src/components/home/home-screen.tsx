@@ -15,21 +15,26 @@ import { cn } from "@/lib/utils";
 
 export function HomeScreen() {
   return (
-    <div className="flex min-h-dvh flex-col">
-      <header className="pt-safe">
+    <div className="relative isolate flex min-h-dvh flex-col overflow-hidden">
+      <div aria-hidden className="pointer-events-none absolute inset-0 -z-10">
+        <div className="absolute -top-32 right-[2%] size-[28rem] rounded-full bg-brand/10 blur-3xl dark:bg-primary/11" />
+        <div className="absolute bottom-[-10%] -left-24 size-80 rounded-full bg-brand/8 blur-3xl" />
+      </div>
+
+      <header className="pt-safe sticky top-0 z-20">
         <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between px-5">
           <Logo />
           <ThemeToggle />
         </div>
       </header>
 
-      <main className="mx-auto grid w-full max-w-6xl flex-1 items-center gap-12 px-5 pt-6 pb-10 md:grid-cols-[1.1fr_1fr] md:pt-10">
+      <main className="mx-auto grid w-full max-w-6xl flex-1 items-center gap-12 px-5 pt-8 pb-14 md:grid-cols-[1.05fr_0.95fr] md:gap-16 md:pt-6">
         <section className="animate-rise">
-          <p className="mb-5 inline-flex items-center gap-2 rounded-full bg-brand-soft px-3 py-1 text-[13px] font-medium text-brand">
+          <p className="mb-6 inline-flex items-center gap-2 rounded-full bg-brand-soft px-3 py-1 text-[13px] font-medium text-brand ring-1 ring-brand/20">
             <span className="size-1.5 rounded-full bg-brand" />
             Badminton tournaments · No sign-up
           </p>
-          <h1 className="text-[44px] leading-[1.02] font-semibold tracking-[-0.035em] sm:text-6xl md:text-7xl">
+          <h1 className="text-balance text-[44px] leading-[1.02] font-semibold tracking-[-0.035em] sm:text-5xl md:text-6xl xl:text-7xl">
             Your tournament.
             <br />
             <span className="text-muted-foreground">Your game.</span>
@@ -41,34 +46,35 @@ export function HomeScreen() {
           <div className="mt-10 flex max-w-md flex-col">
             <Button
               size="2xl"
-              className="w-full shadow-[0_18px_36px_-22px_var(--primary)]"
+              className="w-full shadow-[0_18px_44px_-16px_var(--primary)]"
               render={<Link href="/new" />}
               nativeButton={false}
             >
               <PlusIcon />
               Create tournament
             </Button>
-            <div className="my-7 flex items-center gap-4" aria-hidden>
-              <span className="h-px flex-1 bg-border" />
+            <div className="my-7 flex items-center justify-center gap-3" aria-hidden>
+              <span className="h-px w-10 bg-border" />
               <span className="text-[12px] font-medium tracking-[0.16em] text-muted-foreground uppercase">or</span>
-              <span className="h-px flex-1 bg-border" />
+              <span className="h-px w-10 bg-border" />
             </div>
             <JoinForm />
           </div>
         </section>
 
-        <section className="hidden md:block">
+        <section className="hidden animate-rise md:block [animation-delay:90ms]">
           <CourtArt />
         </section>
       </main>
 
-      <RecentTournaments />
-
-      <footer className="pb-safe">
-        <p className="mx-auto max-w-6xl px-5 py-6 text-[13px] text-muted-foreground">
-          Free to use. Tournaments are shared by link — keep your code with the people you play with.
-        </p>
-      </footer>
+      <div className="relative border-t border-border/80 bg-surface/55">
+        <RecentTournaments />
+        <footer className="pb-safe">
+          <p className="mx-auto max-w-6xl px-5 py-5 text-[13px] text-muted-foreground">
+            Free to use. Tournaments are shared by link — keep your code with the people you play with.
+          </p>
+        </footer>
+      </div>
     </div>
   );
 }
@@ -142,9 +148,9 @@ function RecentTournaments() {
   );
   if (!hydrated || !recent.length) return null;
   return (
-    <section className="mx-auto w-full max-w-6xl px-5 pb-6">
+    <section className="mx-auto w-full max-w-6xl px-5 pt-8 pb-2">
       <h2 className="mb-3 text-[13px] font-medium tracking-wide text-muted-foreground uppercase">Recent</h2>
-      <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+      <ul className={cn("grid gap-2 sm:grid-cols-2", recent.length > 2 && "lg:grid-cols-3")}>
         {recent.map((t) => (
           <li key={t.code} className="group relative">
             <Link
