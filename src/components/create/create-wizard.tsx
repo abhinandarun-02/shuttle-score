@@ -21,7 +21,14 @@ import { CodeDisplay, ShareActions } from "@/components/share";
 import { Button } from "@/components/ui/button";
 import { describeError } from "@/lib/data/refs";
 import { createTournament, MAX_NAME_LENGTH } from "@/lib/data/tournaments";
-import { FORMAT_LABELS, type CategoryChoice, type Format } from "@/lib/domain/types";
+import {
+  FORMAT_LABELS,
+  MATCH_LENGTH_LABELS,
+  type CategoryChoice,
+  type Format,
+  type MatchLength,
+  type PointsToWin,
+} from "@/lib/domain/types";
 import { rememberTournament } from "@/lib/recent";
 import { cn } from "@/lib/utils";
 
@@ -40,7 +47,19 @@ const FORMAT_OPTIONS: { value: Format; hint: string; icon: LucideIcon }[] = [
 
 const NAME_IDEAS = ["Friday Night Smash", "Club Championship", "Office Open", "Summer Shuttle Cup"];
 
-const STEPS = ["Name", "Events", "Format", "Create"] as const;
+const POINT_OPTIONS: { value: PointsToWin; hint: string }[] = [
+  { value: 21, hint: "Win by 2, cap 30. Official badminton." },
+  { value: 15, hint: "Win by 2, cap 24." },
+  { value: 11, hint: "Win by 2, cap 20." },
+];
+
+const LENGTH_OPTIONS: { value: MatchLength; hint: string }[] = [
+  { value: "best_of_3", hint: "First to win 2 games." },
+  { value: "single", hint: "A single game decides the match." },
+];
+
+const STEPS = ["Name", "Events", "Format", "Scoring", "Create"] as const;
+const REVIEW_STEP = STEPS.length - 1;
 
 export function CreateWizard() {
   const router = useRouter();
@@ -48,6 +67,8 @@ export function CreateWizard() {
   const [name, setName] = useState("");
   const [categories, setCategories] = useState<CategoryChoice>("singles");
   const [format, setFormat] = useState<Format>("round_robin");
+  const [pointsToWin, setPointsToWin] = useState<PointsToWin>(21);
+  const [matchLength, setMatchLength] = useState<MatchLength>("best_of_3");
   const [creating, setCreating] = useState(false);
   const [created, setCreated] = useState<string | null>(null);
   const nameInput = useRef<HTMLInputElement>(null);
@@ -72,7 +93,7 @@ export function CreateWizard() {
   const create = async () => {
     setCreating(true);
     try {
-      const code = await createTournament({ name, categories, format });
+      const code = await createTournament({ name, categories, format, pointsToWin, matchLength });
       rememberTournament(code, name.trim());
       setCreated(code);
     } catch (err) {
@@ -191,6 +212,38 @@ export function CreateWizard() {
 
           {step === 3 && (
             <>
+              <StepTitle eyebrow={name.trim()} title="How do you score?" />
+              <p className="mt-6 text-sm font-medium text-muted-foreground">Match points</p>
+              <div className="mt-3 grid gap-3">
+                {POINT_OPTIONS.map((o) => (
+                  <OptionCard
+                    key={o.value}
+                    selected={pointsToWin === o.value}
+                    onSelect={() => setPointsToWin(o.value)}
+                    title={`${o.value} points`}
+                    hint={o.hint}
+                    icon={<span className="text-[15px] font-semibold tabular-nums">{o.value}</span>}
+                  />
+                ))}
+              </div>
+              <p className="mt-6 text-sm font-medium text-muted-foreground">Games per match</p>
+              <div className="mt-3 grid gap-3">
+                {LENGTH_OPTIONS.map((o) => (
+                  <OptionCard
+                    key={o.value}
+                    selected={matchLength === o.value}
+                    onSelect={() => setMatchLength(o.value)}
+                    title={MATCH_LENGTH_LABELS[o.value]}
+                    hint={o.hint}
+                    icon={<span className="text-[15px] font-semibold">{o.value === "single" ? "1" : "3"}</span>}
+                  />
+                ))}
+              </div>
+            </>
+          )}
+
+          {step === REVIEW_STEP && (
+            <>
               <StepTitle eyebrow="Ready" title="Looks good?" />
               <dl className="mt-6 divide-y overflow-hidden rounded-3xl bg-card ring-1 ring-border">
                 <SummaryRow label="Name" value={name.trim()} onEdit={() => setStep(0)} />
@@ -200,6 +253,8 @@ export function CreateWizard() {
                   onEdit={() => setStep(1)}
                 />
                 <SummaryRow label="Format" value={FORMAT_LABELS[format]} onEdit={() => setStep(2)} />
+                <SummaryRow label="Points" value={String(pointsToWin)} onEdit={() => setStep(3)} />
+                <SummaryRow label="Games" value={MATCH_LENGTH_LABELS[matchLength]} onEdit={() => setStep(3)} />
               </dl>
               <p className="mt-4 px-1 text-sm text-muted-foreground">
                 You&apos;ll get a code and a link to share. Players are added next.
@@ -211,7 +266,7 @@ export function CreateWizard() {
 
       <footer className="pb-safe fixed inset-x-0 bottom-0 z-10 bg-gradient-to-t from-background via-background to-background/0 pt-6">
         <div className="mx-auto w-full max-w-xl px-5 pb-4">
-          {step < 3 ? (
+          {step < REVIEW_STEP ? (
             <Button size="2xl" className="w-full" disabled={!canContinue} onClick={next}>
               Continue
               <ArrowRightIcon />

@@ -7,9 +7,9 @@ import {
   type ProgressResult,
 } from "@/lib/domain/progression";
 import { addPoint, correctScore, endEarly, undoLast, winnerId } from "@/lib/domain/scoring";
-import type { GameScore, Match, Side } from "@/lib/domain/types";
+import { scoringRulesOf, type GameScore, type Match, type ScoringRules, type Side } from "@/lib/domain/types";
 import { ensureAuth, getFirebase } from "@/lib/firebase/client";
-import { matchToDoc, parseMatch } from "./converters";
+import { matchToDoc, parseMatch, parseTournament } from "./converters";
 import { eventsCol, matchRef, tournamentRef, UserFacingError } from "./refs";
 
 export type ScoreOp =
@@ -25,14 +25,14 @@ export class ScoreConflictError extends Error {
   }
 }
 
-export function applyOp(match: Match, op: ScoreOp): Match {
+export function applyOp(match: Match, op: ScoreOp, rules: ScoringRules): Match {
   switch (op.type) {
     case "point":
-      return addPoint(match, op.side);
+      return addPoint(match, op.side, rules);
     case "undo":
       return undoLast(match);
     case "correct":
-      return correctScore(match, op.games);
+      return correctScore(match, op.games, rules);
     case "end":
       return endEarly(match, op.winner);
   }
@@ -85,12 +85,15 @@ export async function applyScoreOp(
   const user = await ensureAuth();
   const { db } = getFirebase();
   return runTransaction(db, async (tx) => {
+    const tournamentSnap = await tx.get(tournamentRef(code));
     const snap = await tx.get(matchRef(code, matchId));
+    if (!tournamentSnap.exists()) throw new UserFacingError("This tournament no longer exists.");
     if (!snap.exists()) throw new UserFacingError("This match no longer exists.");
+    const rules = scoringRulesOf(parseTournament(tournamentSnap));
     const before = parseMatch(snap);
     if (before.version !== expectedVersion) throw new ScoreConflictError();
 
-    const after: Match = { ...applyOp(before, op), version: before.version + 1, updatedAt: Date.now() };
+    const after: Match = { ...applyOp(before, op, rules), version: before.version + 1, updatedAt: Date.now() };
     const wasDone = before.status === "completed";
     const isDone = after.status === "completed";
     const winnerChanged = wasDone && isDone && winnerId(before) !== winnerId(after);

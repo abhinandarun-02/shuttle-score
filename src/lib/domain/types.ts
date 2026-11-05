@@ -2,6 +2,34 @@ export type Category = "singles" | "doubles";
 export type CategoryChoice = Category | "both";
 export type Format = "round_robin" | "groups" | "knockout" | "double_elim";
 export type Side = "A" | "B";
+export type PointsToWin = 11 | 15 | 21;
+export type MatchLength = "single" | "best_of_3";
+
+export interface ScoringRules {
+  pointsToWin: PointsToWin;
+  matchLength: MatchLength;
+}
+
+export const DEFAULT_SCORING_RULES: ScoringRules = {
+  pointsToWin: 21,
+  matchLength: "best_of_3",
+};
+
+export function isPointsToWin(value: unknown): value is PointsToWin {
+  return value === 11 || value === 15 || value === 21;
+}
+
+export function isMatchLength(value: unknown): value is MatchLength {
+  return value === "single" || value === "best_of_3";
+}
+
+/** Rules stored on the tournament, or the historical default when a document predates them. */
+export function scoringRulesOf(source: { pointsToWin?: unknown; matchLength?: unknown } | null | undefined): ScoringRules {
+  return {
+    pointsToWin: isPointsToWin(source?.pointsToWin) ? source.pointsToWin : DEFAULT_SCORING_RULES.pointsToWin,
+    matchLength: isMatchLength(source?.matchLength) ? source.matchLength : DEFAULT_SCORING_RULES.matchLength,
+  };
+}
 
 /** Sentinel participant id for an empty bracket slot that auto-advances the opponent. */
 export const BYE = "BYE";
@@ -90,6 +118,8 @@ export interface Tournament {
   name: string;
   categories: Category[];
   format: Format;
+  pointsToWin: PointsToWin;
+  matchLength: MatchLength;
   createdAt: number;
   createdBy: string;
   state: Partial<Record<Category, CategoryState>>;
@@ -101,6 +131,15 @@ export const FORMAT_LABELS: Record<Format, string> = {
   knockout: "Knockout",
   double_elim: "Double Elimination",
 };
+
+export const MATCH_LENGTH_LABELS: Record<MatchLength, string> = {
+  single: "One game",
+  best_of_3: "Best of 3",
+};
+
+export function scoringSummary(rules: ScoringRules): string {
+  return `${rules.pointsToWin} · ${MATCH_LENGTH_LABELS[rules.matchLength]}`;
+}
 
 export const CATEGORY_LABELS: Record<Category, string> = {
   singles: "Singles",

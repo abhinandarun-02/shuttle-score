@@ -33,7 +33,7 @@ import {
 import { useOnline } from "@/lib/data/hooks";
 import { describeError } from "@/lib/data/refs";
 import { MAX_NAME_LENGTH, renameTournament } from "@/lib/data/tournaments";
-import { CATEGORY_LABELS, FORMAT_LABELS, type Format } from "@/lib/domain/types";
+import { CATEGORY_LABELS, FORMAT_LABELS, scoringRulesOf, scoringSummary, type Format } from "@/lib/domain/types";
 import { setThemePref } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 
@@ -90,7 +90,9 @@ export function TournamentChrome({ children }: { children: ReactNode }) {
                 {code}
               </button>
               <TournamentStatusPill status={status} />
-              <span className="hidden truncate sm:inline">{FORMAT_LABELS[tournament.format]}</span>
+              <span className="hidden truncate sm:inline">
+                {FORMAT_LABELS[tournament.format]} · {scoringSummary(scoringRulesOf(tournament))}
+              </span>
             </div>
           </div>
           <Button variant="ghost" size="icon-xl" onClick={() => setShareOpen(true)} aria-label="Share tournament">

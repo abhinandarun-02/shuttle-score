@@ -3,7 +3,7 @@
 import { onSnapshot } from "firebase/firestore";
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { toast } from "sonner";
-import type { GameScore, Match, Player, Side, Team, Tournament } from "@/lib/domain/types";
+import type { GameScore, Match, Player, ScoringRules, Side, Team, Tournament } from "@/lib/domain/types";
 import { ensureAuth } from "@/lib/firebase/client";
 import { parseMatch, parsePlayer, parseTeam, parseTournament } from "./converters";
 import { describeError, matchesCol, playersCol, teamsCol, tournamentRef } from "./refs";
@@ -143,12 +143,14 @@ interface QueuedOp {
   committed: number | null;
 }
 
-export function useMatchScorer(code: string, match: Match | null) {
+export function useMatchScorer(code: string, match: Match | null, rules: ScoringRules) {
   const [items, setItems] = useState<QueuedOp[]>([]);
   const queue = useRef<QueuedOp[]>([]);
   const running = useRef(false);
   const knownVersion = useRef(0);
   const latest = useRef(match);
+  const rulesRef = useRef(rules);
+  rulesRef.current = rules;
 
   useEffect(() => {
     latest.current = match;
@@ -194,7 +196,7 @@ export function useMatchScorer(code: string, match: Match | null) {
       if (!current) return false;
       try {
         let preview = current;
-        for (const q of [...queue.current, { op, committed: null }]) preview = applyOp(preview, q.op);
+        for (const q of [...queue.current, { op, committed: null }]) preview = applyOp(preview, q.op, rulesRef.current);
       } catch (err) {
         toast.error(describeError(err));
         return false;
@@ -211,7 +213,7 @@ export function useMatchScorer(code: string, match: Match | null) {
   if (match) {
     try {
       for (const q of items) {
-        if (q.committed === null || q.committed > match.version) display = applyOp(display!, q.op);
+        if (q.committed === null || q.committed > match.version) display = applyOp(display!, q.op, rules);
       }
     } catch {
       display = match;

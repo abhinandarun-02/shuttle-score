@@ -1,6 +1,7 @@
 import type { DocumentData, DocumentSnapshot, QueryDocumentSnapshot } from "firebase/firestore";
 import {
   emptyCategoryState,
+  scoringRulesOf,
   type Category,
   type CategoryState,
   type Format,
@@ -39,11 +40,14 @@ export function parseTournament(snap: Snap): Tournament {
     const raw = (d.state?.[c] ?? {}) as Partial<CategoryState>;
     state[c] = { ...emptyCategoryState(), ...raw };
   }
+  const rules = scoringRulesOf(d);
   return {
     code: snap.id,
     name: str(d.name) ?? "Tournament",
     categories,
     format: (d.format as Format) ?? "round_robin",
+    pointsToWin: rules.pointsToWin,
+    matchLength: rules.matchLength,
     createdAt: num(d.createdAt),
     createdBy: str(d.createdBy) ?? "",
     state,

@@ -1,10 +1,29 @@
-import { isRealParticipant, type GameScore, type Match, type MatchStatus, type Side } from "./types";
+import {
+  DEFAULT_SCORING_RULES,
+  isRealParticipant,
+  type GameScore,
+  type Match,
+  type MatchLength,
+  type MatchStatus,
+  type PointsToWin,
+  type ScoringRules,
+  type Side,
+} from "./types";
 
-export const POINTS_TO_WIN = 21;
-export const POINT_CAP = 30;
-export const GAMES_TO_WIN = 2;
-export const MAX_GAMES = 3;
 const UNDO_LIMIT = 250;
+
+/** Hard cap is nine points above the target: 20, 24, or 30. */
+export function pointCap(pointsToWin: PointsToWin): number {
+  return pointsToWin + 9;
+}
+
+export function gamesNeeded(matchLength: MatchLength): number {
+  return matchLength === "single" ? 1 : 2;
+}
+
+export function maxGames(matchLength: MatchLength): number {
+  return matchLength === "single" ? 1 : 3;
+}
 
 export class ScoringError extends Error {
   constructor(message: string) {
@@ -15,41 +34,46 @@ export class ScoringError extends Error {
 
 const key = (side: Side) => (side === "A" ? "a" : "b");
 
-/** Winner of a single game under BWF rules (21, win by 2, 30 cap), or null if still in play. */
-export function gameWinner(game: GameScore): Side | null {
-  if (game.a >= POINT_CAP) return "A";
-  if (game.b >= POINT_CAP) return "B";
-  if (game.a >= POINTS_TO_WIN && game.a - game.b >= 2) return "A";
-  if (game.b >= POINTS_TO_WIN && game.b - game.a >= 2) return "B";
+/** Winner of a single game (target, win by 2, cap nine above), or null if still in play. */
+export function gameWinner(game: GameScore, rules: ScoringRules = DEFAULT_SCORING_RULES): Side | null {
+  const cap = pointCap(rules.pointsToWin);
+  const target = rules.pointsToWin;
+  if (game.a >= cap) return "A";
+  if (game.b >= cap) return "B";
+  if (game.a >= target && game.a - game.b >= 2) return "A";
+  if (game.b >= target && game.b - game.a >= 2) return "B";
   return null;
 }
 
 /** A finished game score that can actually occur in play (e.g. 21-19, 24-22, 30-29; not 25-20). */
-export function isValidFinalScore(game: GameScore): boolean {
-  if (!gameWinner(game)) return false;
+export function isValidFinalScore(game: GameScore, rules: ScoringRules = DEFAULT_SCORING_RULES): boolean {
+  if (!gameWinner(game, rules)) return false;
+  const target = rules.pointsToWin;
+  const cap = pointCap(target);
   const w = Math.max(game.a, game.b);
   const l = Math.min(game.a, game.b);
-  if (w === POINTS_TO_WIN) return l <= POINTS_TO_WIN - 2;
-  if (w > POINTS_TO_WIN && w < POINT_CAP) return l === w - 2;
-  if (w === POINT_CAP) return l === POINT_CAP - 1 || l === POINT_CAP - 2;
+  if (w === target) return l <= target - 2;
+  if (w > target && w < cap) return l === w - 2;
+  if (w === cap) return l === cap - 1 || l === cap - 2;
   return false;
 }
 
-export function gamesWon(games: GameScore[]): { a: number; b: number } {
+export function gamesWon(games: GameScore[], rules: ScoringRules = DEFAULT_SCORING_RULES): { a: number; b: number } {
   let a = 0;
   let b = 0;
   for (const g of games) {
-    const w = gameWinner(g);
+    const w = gameWinner(g, rules);
     if (w === "A") a++;
     else if (w === "B") b++;
   }
   return { a, b };
 }
 
-export function matchWinnerFromGames(games: GameScore[]): Side | null {
-  const won = gamesWon(games);
-  if (won.a >= GAMES_TO_WIN) return "A";
-  if (won.b >= GAMES_TO_WIN) return "B";
+export function matchWinnerFromGames(games: GameScore[], rules: ScoringRules = DEFAULT_SCORING_RULES): Side | null {
+  const won = gamesWon(games, rules);
+  const needed = gamesNeeded(rules.matchLength);
+  if (won.a >= needed) return "A";
+  if (won.b >= needed) return "B";
   return null;
 }
 
@@ -67,34 +91,36 @@ export function currentGameNumber(games: GameScore[]): number {
 }
 
 /** Appends a fresh 0-0 game when the last game is finished but the match is not. */
-export function normalizeGames(games: GameScore[]): GameScore[] {
+export function normalizeGames(games: GameScore[], rules: ScoringRules = DEFAULT_SCORING_RULES): GameScore[] {
   const out = games.map((g) => ({ a: g.a, b: g.b }));
   const last = out[out.length - 1];
-  if (last && gameWinner(last) && !matchWinnerFromGames(out) && out.length < MAX_GAMES) {
+  if (last && gameWinner(last, rules) && !matchWinnerFromGames(out, rules) && out.length < maxGames(rules.matchLength)) {
     out.push({ a: 0, b: 0 });
   }
   return out;
 }
 
 /** Returns a human-readable problem with a set of corrected game scores, or null when valid. */
-export function validateCorrection(games: GameScore[]): string | null {
+export function validateCorrection(games: GameScore[], rules: ScoringRules = DEFAULT_SCORING_RULES): string | null {
+  const cap = pointCap(rules.pointsToWin);
+  const limit = maxGames(rules.matchLength);
   if (games.length === 0) return "Enter at least one game.";
-  if (games.length > MAX_GAMES) return `A match has at most ${MAX_GAMES} games.`;
+  if (games.length > limit) return `A match has at most ${limit} ${limit === 1 ? "game" : "games"}.`;
   for (let i = 0; i < games.length; i++) {
     const g = games[i];
     const label = `Game ${i + 1}`;
     for (const v of [g.a, g.b]) {
-      if (!Number.isInteger(v) || v < 0 || v > POINT_CAP) {
-        return `${label}: scores must be whole numbers from 0 to ${POINT_CAP}.`;
+      if (!Number.isInteger(v) || v < 0 || v > cap) {
+        return `${label}: scores must be whole numbers from 0 to ${cap}.`;
       }
     }
     const isLast = i === games.length - 1;
-    if (gameWinner(g) && !isValidFinalScore(g)) {
+    if (gameWinner(g, rules) && !isValidFinalScore(g, rules)) {
       return `${label}: ${g.a}–${g.b} isn't a possible final score.`;
     }
     if (!isLast) {
-      if (!gameWinner(g)) return `${label} must be finished before game ${i + 2} starts.`;
-      if (matchWinnerFromGames(games.slice(0, i + 1))) {
+      if (!gameWinner(g, rules)) return `${label} must be finished before game ${i + 2} starts.`;
+      if (matchWinnerFromGames(games.slice(0, i + 1), rules)) {
         return `The match was already decided after game ${i + 1}.`;
       }
     }
@@ -150,15 +176,15 @@ function assertPlayable(match: Match) {
   }
 }
 
-export function addPoint(match: Match, side: Side): Match {
+export function addPoint(match: Match, side: Side, rules: ScoringRules = DEFAULT_SCORING_RULES): Match {
   assertPlayable(match);
   if (match.status === "completed") throw new ScoringError("This match is already finished.");
   const games = (match.games.length ? match.games : [{ a: 0, b: 0 }]).map((g) => ({ ...g }));
   const game = games[games.length - 1];
   game[key(side)] += 1;
   let winner: Side | null = null;
-  if (gameWinner(game)) {
-    winner = matchWinnerFromGames(games);
+  if (gameWinner(game, rules)) {
+    winner = matchWinnerFromGames(games, rules);
     if (!winner) games.push({ a: 0, b: 0 });
   }
   return withScore(match, { games, winner, endedEarly: false }, true);
@@ -174,12 +200,12 @@ export function undoLast(match: Match): Match {
   return withScore({ ...match, undo: match.undo.slice(0, -1) }, previous, false);
 }
 
-export function correctScore(match: Match, games: GameScore[]): Match {
+export function correctScore(match: Match, games: GameScore[], rules: ScoringRules = DEFAULT_SCORING_RULES): Match {
   assertPlayable(match);
-  const problem = validateCorrection(games);
+  const problem = validateCorrection(games, rules);
   if (problem) throw new ScoringError(problem);
-  const normalized = normalizeGames(games);
-  const winner = matchWinnerFromGames(normalized);
+  const normalized = normalizeGames(games, rules);
+  const winner = matchWinnerFromGames(normalized, rules);
   return withScore(match, { games: normalized, winner, endedEarly: false }, true);
 }
 

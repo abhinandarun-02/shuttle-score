@@ -1,6 +1,6 @@
 import { firstRoundPairs } from "./fixtures";
 import { gamesWon } from "./scoring";
-import { isRealParticipant, type Match } from "./types";
+import { DEFAULT_SCORING_RULES, isRealParticipant, type Match, type ScoringRules } from "./types";
 
 export interface StandingRow {
   id: string;
@@ -23,7 +23,11 @@ function countable(m: Match): boolean {
  * Ranks participants by matches won. Ties between two players are broken by their head-to-head
  * result; larger ties by game difference, then point difference, then points scored.
  */
-export function computeStandings(participantIds: readonly string[], matches: readonly Match[]): StandingRow[] {
+export function computeStandings(
+  participantIds: readonly string[],
+  matches: readonly Match[],
+  rules: ScoringRules = DEFAULT_SCORING_RULES,
+): StandingRow[] {
   const rows = new Map<string, StandingRow>();
   participantIds.forEach((id) =>
     rows.set(id, {
@@ -43,7 +47,7 @@ export function computeStandings(participantIds: readonly string[], matches: rea
   for (const m of relevant) {
     const a = rows.get(m.a!)!;
     const b = rows.get(m.b!)!;
-    const g = gamesWon(m.games);
+    const g = gamesWon(m.games, rules);
     const pa = m.games.reduce((s, x) => s + x.a, 0);
     const pb = m.games.reduce((s, x) => s + x.b, 0);
     a.played++;

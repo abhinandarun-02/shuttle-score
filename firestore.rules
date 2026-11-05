@@ -53,11 +53,13 @@ service cloud.firestore {
 
       allow create: if signedIn()
         && code.matches('^[A-HJ-NP-Z2-9]{6}$')
-        && request.resource.data.keys().hasOnly(['code', 'name', 'categories', 'format', 'createdAt', 'createdBy', 'state'])
+        && request.resource.data.keys().hasOnly(['code', 'name', 'categories', 'format', 'pointsToWin', 'matchLength', 'createdAt', 'createdBy', 'state'])
         && request.resource.data.code == code
         && validText(request.resource.data.name, 60)
         && validCategories(request.resource.data.categories)
         && request.resource.data.format in ['round_robin', 'groups', 'knockout', 'double_elim']
+        && request.resource.data.pointsToWin in [11, 15, 21]
+        && request.resource.data.matchLength in ['single', 'best_of_3']
         && request.resource.data.createdAt is int
         && request.resource.data.createdBy == request.auth.uid
         && validState(request.resource.data.state, request.resource.data.categories);

@@ -21,7 +21,7 @@ import { cancelKnockout } from "@/lib/data/fixtures";
 import { describeError } from "@/lib/data/refs";
 import { knockoutRoundName, roundContext, roundLabel } from "@/lib/domain/labels";
 import { gameWinner } from "@/lib/domain/scoring";
-import { BYE, type Match, type Side, type Stage } from "@/lib/domain/types";
+import { BYE, scoringRulesOf, type Match, type ScoringRules, type Side, type Stage } from "@/lib/domain/types";
 import { cn } from "@/lib/utils";
 
 const ROW = 76;
@@ -160,7 +160,8 @@ function Connectors({ from, to, height }: { from: number; to: number; height: nu
 }
 
 function BracketCard({ match }: { match: Match }) {
-  const { view, href } = useTournament();
+  const { view, href, tournament } = useTournament();
+  const rules = scoringRulesOf(tournament);
   const playable = match.status === "upcoming" || match.status === "live" || match.status === "completed";
   const live = match.status === "live";
   const inner = (
@@ -174,7 +175,7 @@ function BracketCard({ match }: { match: Match }) {
       {(["A", "B"] as Side[]).map((side, i) => {
         const id = side === "A" ? match.a : match.b;
         const won = match.winner === side;
-        const score = sideScore(match, side);
+        const score = sideScore(match, side, rules);
         return (
           <div
             key={side}
@@ -203,8 +204,8 @@ function BracketCard({ match }: { match: Match }) {
   );
 }
 
-function sideScore(match: Match, side: Side): number | null {
-  const played = match.games.filter((g, i) => gameWinner(g) || (match.status === "live" && i === match.games.length - 1));
+function sideScore(match: Match, side: Side, rules: ScoringRules): number | null {
+  const played = match.games.filter((g, i) => gameWinner(g, rules) || (match.status === "live" && i === match.games.length - 1));
   if (!played.length || match.bye) return null;
   const current = played[played.length - 1];
   return side === "A" ? current.a : current.b;

@@ -16,19 +16,22 @@ import {
   canUndo,
   currentGame,
   currentGameNumber,
+  gamesNeeded,
   gameWinner,
   gamesWon,
-  POINT_CAP,
+  maxGames,
+  pointCap,
   validateCorrection,
 } from "@/lib/domain/scoring";
-import type { GameScore, Match, Side } from "@/lib/domain/types";
+import { scoringRulesOf, type GameScore, type Match, type ScoringRules, type Side } from "@/lib/domain/types";
 import { cn } from "@/lib/utils";
 
 export function ScoringRoute({ params }: { params: Promise<{ code: string; matchId: string }> }) {
   const { matchId } = use(params);
-  const { matches, code, href } = useTournament();
+  const { matches, code, href, tournament } = useTournament();
+  const rules = scoringRulesOf(tournament);
   const server = matches.find((m) => m.id === matchId) ?? null;
-  const scorer = useMatchScorer(code, server);
+  const scorer = useMatchScorer(code, server, rules);
   const match = scorer.match;
   const { point, undo } = scorer;
 
@@ -62,7 +65,7 @@ export function ScoringRoute({ params }: { params: Promise<{ code: string; match
     );
   }
 
-  return <ScoringView match={match} scorer={scorer} back={href()} />;
+  return <ScoringView match={match} scorer={scorer} back={href()} rules={rules} />;
 }
 
 function Message({ back, title, body }: { back: string; title: string; body: string }) {
@@ -85,10 +88,12 @@ function ScoringView({
   match,
   scorer,
   back,
+  rules,
 }: {
   match: Match;
   scorer: ReturnType<typeof useMatchScorer>;
   back: string;
+  rules: ScoringRules;
 }) {
   const { view, code } = useTournament();
   const online = useOnline();
@@ -101,8 +106,13 @@ function ScoringView({
   const canScore = !finished && !waiting && online;
   const game = currentGame(match.games);
   const gameNo = currentGameNumber(match.games);
-  const won = gamesWon(match.games);
-  const previous = match.games.filter((g) => gameWinner(g));
+  const won = gamesWon(match.games, rules);
+  const previous = match.games.filter((g) => gameWinner(g, rules));
+  const singleGame = rules.matchLength === "single";
+  const gameSlots = gamesNeeded(rules.matchLength);
+  const headlineA = finished && !singleGame ? won.a : game.a;
+  const headlineB = finished && !singleGame ? won.b : game.b;
+  const detailGames = finished ? (singleGame ? [] : match.games) : previous;
 
   const point = (side: Side) => {
     if (scorer.point(side)) navigator.vibrate?.(12);
@@ -145,17 +155,19 @@ function ScoringView({
       </header>
 
       <main className="mx-auto flex w-full max-w-lg flex-1 flex-col px-4 pt-4 pb-44">
-        <div className="flex items-center justify-center gap-2" aria-label={`Game ${gameNo}`}>
-          {[0, 1].map((i) => (
-            <span key={`a${i}`} className={cn("size-2 rounded-full", won.a > i ? "bg-primary" : "bg-muted")} />
-          ))}
-          <span className="px-2 text-sm font-medium text-muted-foreground">
-            {finished ? "Match" : `Game ${gameNo}`}
-          </span>
-          {[0, 1].map((i) => (
-            <span key={`b${i}`} className={cn("size-2 rounded-full", won.b > i ? "bg-foreground" : "bg-muted")} />
-          ))}
-        </div>
+        {!singleGame && (
+          <div className="flex items-center justify-center gap-2" aria-label={`Game ${gameNo}`}>
+            {Array.from({ length: gameSlots }, (_, i) => (
+              <span key={`a${i}`} className={cn("size-2 rounded-full", won.a > i ? "bg-primary" : "bg-muted")} />
+            ))}
+            <span className="px-2 text-sm font-medium text-muted-foreground">
+              {finished ? "Match" : `Game ${gameNo}`}
+            </span>
+            {Array.from({ length: gameSlots }, (_, i) => (
+              <span key={`b${i}`} className={cn("size-2 rounded-full", won.b > i ? "bg-foreground" : "bg-muted")} />
+            ))}
+          </div>
+        )}
 
         {previous.length > 0 && !finished && (
           <p className="mt-3 text-center font-mono text-sm text-muted-foreground tabular-nums">
@@ -170,9 +182,9 @@ function ScoringView({
           </div>
         ) : (
           <div className="mt-6 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
-            <ScoreBlock name={view.nameOf(match.a)} score={finished ? won.a : game.a} side="A" winner={match.winner === "A"} dim={finished && match.winner !== "A"} games={finished ? match.games : previous} />
+            <ScoreBlock name={view.nameOf(match.a)} score={headlineA} side="A" winner={match.winner === "A"} dim={finished && match.winner !== "A"} games={detailGames} />
             <span className="pb-8 text-sm font-medium text-muted-foreground">vs</span>
-            <ScoreBlock name={view.nameOf(match.b)} score={finished ? won.b : game.b} side="B" winner={match.winner === "B"} dim={finished && match.winner !== "B"} games={finished ? match.games : previous} />
+            <ScoreBlock name={view.nameOf(match.b)} score={headlineB} side="B" winner={match.winner === "B"} dim={finished && match.winner !== "B"} games={detailGames} />
           </div>
         )}
 
@@ -184,7 +196,7 @@ function ScoringView({
             </p>
             <p className="mt-1 text-2xl font-semibold tracking-tight">{view.nameOf(match.winner === "A" ? match.a : match.b)}</p>
             <p className="mt-1 font-mono text-sm tabular-nums opacity-80">
-              {match.games.filter((g) => gameWinner(g) || g.a + g.b > 0).map((g) => `${g.a}–${g.b}`).join("  ·  ") || "No games played"}
+              {match.games.filter((g) => gameWinner(g, rules) || g.a + g.b > 0).map((g) => `${g.a}–${g.b}`).join("  ·  ") || "No games played"}
             </p>
           </div>
         )}
@@ -221,7 +233,7 @@ function ScoringView({
         </div>
       )}
 
-      <CorrectSheet open={correctOpen} onOpenChange={setCorrectOpen} match={match} onSave={(games) => scorer.correct(games)} />
+      <CorrectSheet open={correctOpen} onOpenChange={setCorrectOpen} match={match} rules={rules} onSave={(games) => scorer.correct(games)} />
       <EndSheet
         open={endOpen}
         onOpenChange={setEndOpen}
@@ -289,11 +301,11 @@ function PointButton({ side, name, disabled, onClick }: { side: Side; name: stri
   );
 }
 
-function gamesForEditing(match: Match): GameScore[] {
+function gamesForEditing(match: Match, rules: ScoringRules): GameScore[] {
   const games = (match.games.length ? match.games : [{ a: 0, b: 0 }]).map((g) => ({ ...g }));
   if (games.length > 1) {
     const last = games[games.length - 1];
-    if (last.a === 0 && last.b === 0 && gameWinner(games[games.length - 2])) games.pop();
+    if (last.a === 0 && last.b === 0 && gameWinner(games[games.length - 2], rules)) games.pop();
   }
   return games;
 }
@@ -302,31 +314,35 @@ function CorrectSheet({
   open,
   onOpenChange,
   match,
+  rules,
   onSave,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
   match: Match;
+  rules: ScoringRules;
   onSave: (games: GameScore[]) => boolean;
 }) {
+  const cap = pointCap(rules.pointsToWin);
+  const gameLimit = maxGames(rules.matchLength);
   const [games, setGames] = useState<GameScore[]>([{ a: 0, b: 0 }]);
   const [error, setError] = useState<string | null>(null);
   const [wasOpen, setWasOpen] = useState(open);
   if (open !== wasOpen) {
     setWasOpen(open);
     if (open) {
-      setGames(gamesForEditing(match));
+      setGames(gamesForEditing(match, rules));
       setError(null);
     }
   }
 
   const set = (i: number, side: keyof GameScore, value: number) => {
-    setGames((gs) => gs.map((g, idx) => (idx === i ? { ...g, [side]: Math.max(0, Math.min(POINT_CAP, value)) } : g)));
+    setGames((gs) => gs.map((g, idx) => (idx === i ? { ...g, [side]: Math.max(0, Math.min(cap, value)) } : g)));
     setError(null);
   };
 
   const save = () => {
-    const problem = validateCorrection(games);
+    const problem = validateCorrection(games, rules);
     if (problem) {
       setError(problem);
       return;
@@ -348,7 +364,7 @@ function CorrectSheet({
           </div>
         ))}
         <div className="flex justify-center">
-          {games.length < 3 ? (
+          {games.length < gameLimit ? (
             <Button variant="ghost" size="sm" onClick={() => setGames((gs) => [...gs, { a: 0, b: 0 }])}>
               <PlusIcon />
               Add a game

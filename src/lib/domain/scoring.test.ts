@@ -10,13 +10,13 @@ import {
   undoLast,
   validateCorrection,
 } from "./scoring";
-import type { Match, Side } from "./types";
+import type { Match, ScoringRules, Side } from "./types";
 
 const fresh = (): Match =>
   blankMatch({ id: "m", category: "singles", stage: "rr", round: 1, slot: 0, a: "p1", b: "p2", status: "upcoming" });
 
-function play(m: Match, sides: string): Match {
-  for (const ch of sides) m = addPoint(m, ch as Side);
+function play(m: Match, sides: string, rules?: ScoringRules): Match {
+  for (const ch of sides) m = rules ? addPoint(m, ch as Side, rules) : addPoint(m, ch as Side);
   return m;
 }
 
@@ -182,5 +182,46 @@ describe("validateCorrection / correctScore", () => {
       { a: 0, b: 0 },
     ]);
     expect(m.status).toBe("live");
+  });
+});
+
+describe("other targets and match lengths", () => {
+  const to15: ScoringRules = { pointsToWin: 15, matchLength: "best_of_3" };
+  const to11: ScoringRules = { pointsToWin: 11, matchLength: "best_of_3" };
+  const single: ScoringRules = { pointsToWin: 21, matchLength: "single" };
+
+  it("wins a 15-point game by two and caps at 24", () => {
+    expect(gameWinner({ a: 15, b: 13 }, to15)).toBe("A");
+    expect(gameWinner({ a: 15, b: 14 }, to15)).toBeNull();
+    expect(gameWinner({ a: 23, b: 22 }, to15)).toBeNull();
+    expect(gameWinner({ a: 24, b: 23 }, to15)).toBe("A");
+    expect(isValidFinalScore({ a: 24, b: 22 }, to15)).toBe(true);
+    expect(isValidFinalScore({ a: 20, b: 15 }, to15)).toBe(false);
+    const m = play(fresh(), times("B", 13) + times("A", 15), to15);
+    expect(m.games[0]).toEqual({ a: 15, b: 13 });
+    expect(m.games).toHaveLength(2);
+    expect(m.status).toBe("live");
+  });
+
+  it("wins an 11-point game by two and caps at 20", () => {
+    expect(gameWinner({ a: 11, b: 9 }, to11)).toBe("A");
+    expect(gameWinner({ a: 11, b: 10 }, to11)).toBeNull();
+    expect(gameWinner({ a: 20, b: 19 }, to11)).toBe("A");
+    expect(isValidFinalScore({ a: 16, b: 14 }, to11)).toBe(true);
+    expect(isValidFinalScore({ a: 15, b: 11 }, to11)).toBe(false);
+    let m = play(fresh(), "AB".repeat(19), to11);
+    expect(m.games).toEqual([{ a: 19, b: 19 }]);
+    m = addPoint(m, "A", to11);
+    expect(m.games[0]).toEqual({ a: 20, b: 19 });
+    expect(m.games).toHaveLength(2);
+  });
+
+  it("ends a single-game match when that game is won and rejects a second game", () => {
+    const m = play(fresh(), times("A", 21), single);
+    expect(m.status).toBe("completed");
+    expect(m.winner).toBe("A");
+    expect(m.games).toHaveLength(1);
+    expect(validateCorrection([{ a: 21, b: 10 }, { a: 1, b: 0 }], single)).toMatch(/at most 1 game/);
+    expect(() => correctScore(fresh(), [{ a: 21, b: 5 }, { a: 21, b: 5 }], single)).toThrow(/at most 1/);
   });
 });

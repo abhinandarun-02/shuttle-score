@@ -5,6 +5,8 @@ import {
   type Category,
   type CategoryChoice,
   type Format,
+  type MatchLength,
+  type PointsToWin,
 } from "@/lib/domain/types";
 import { ensureAuth, getFirebase } from "@/lib/firebase/client";
 import { tournamentRef, UserFacingError } from "./refs";
@@ -19,6 +21,8 @@ export async function createTournament(input: {
   name: string;
   categories: CategoryChoice;
   format: Format;
+  pointsToWin: PointsToWin;
+  matchLength: MatchLength;
 }): Promise<string> {
   const name = input.name.trim().slice(0, MAX_NAME_LENGTH);
   if (!name) throw new UserFacingError("Give your tournament a name.");
@@ -38,6 +42,8 @@ export async function createTournament(input: {
         name,
         categories,
         format: input.format,
+        pointsToWin: input.pointsToWin,
+        matchLength: input.matchLength,
         createdAt: Date.now(),
         createdBy: user.uid,
         state,

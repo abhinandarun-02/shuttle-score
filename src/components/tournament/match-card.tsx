@@ -7,7 +7,7 @@ import { MatchStatusPill } from "@/components/tournament/status-pill";
 import { useTournament } from "@/components/tournament/tournament-context";
 import { roundLabel, type RoundContext } from "@/lib/domain/labels";
 import { gamesWon, gameWinner } from "@/lib/domain/scoring";
-import type { Match, Side } from "@/lib/domain/types";
+import { scoringRulesOf, type Match, type Side } from "@/lib/domain/types";
 import { cn } from "@/lib/utils";
 
 const MARK_TONES = [
@@ -63,11 +63,13 @@ export function SideMark({
 }
 
 export function MatchCard({ match, ctx, showRound = true }: { match: Match; ctx: RoundContext; showRound?: boolean }) {
-  const { view, href } = useTournament();
+  const { view, href, tournament } = useTournament();
+  const rules = scoringRulesOf(tournament);
+  const singleGame = rules.matchLength === "single";
   const live = match.status === "live";
   const playable = match.status !== "waiting";
   const games = match.games.filter((g, i) => i < match.games.length - 1 || g.a > 0 || g.b > 0 || match.status === "live");
-  const sets = gamesWon(match.games);
+  const sets = gamesWon(match.games, rules);
   const nameA = view.nameOf(match.a);
   const nameB = view.nameOf(match.b);
 
@@ -133,7 +135,7 @@ export function MatchCard({ match, ctx, showRound = true }: { match: Match; ctx:
                     {games.map((g, i) => {
                       const isCurrent = live && i === match.games.length - 1;
                       const value = side === "A" ? g.a : g.b;
-                      const wonGame = gameWinner(g) === side;
+                      const wonGame = gameWinner(g, rules) === side;
                       return (
                         <span
                           key={i}
@@ -163,14 +165,17 @@ export function MatchCard({ match, ctx, showRound = true }: { match: Match; ctx:
           {match.status === "live" && "Open the scoreboard"}
           {match.status === "upcoming" && "Tap to start scoring"}
           {match.status === "waiting" && "Waiting on an earlier result"}
-          {match.status === "completed" && (match.endedEarly ? "Ended early" : "Sets played")}
+          {match.status === "completed" &&
+            (match.endedEarly ? "Ended early" : singleGame ? "Game Completed" : "Sets played")}
         </span>
         {match.status === "completed" ? (
-          <span className="font-mono text-sm font-semibold tabular-nums">
-            {sets.a}
-            <span className="px-0.5 text-muted-foreground">–</span>
-            {sets.b}
-          </span>
+          singleGame ? null : (
+            <span className="font-mono text-sm font-semibold tabular-nums">
+              {sets.a}
+              <span className="px-0.5 text-muted-foreground">–</span>
+              {sets.b}
+            </span>
+          )
         ) : playable ? (
           <span className="grid size-7 place-items-center rounded-full bg-primary text-primary-foreground transition-transform duration-200 group-hover:translate-x-0.5">
             <ArrowRightIcon className="size-3.5" />

@@ -30,6 +30,8 @@ const tournament = (uid: string) => ({
   name: "Club Night",
   categories: ["singles", "doubles"],
   format: "double_elim",
+  pointsToWin: 21,
+  matchLength: "best_of_3",
   createdAt: Date.now(),
   createdBy: uid,
   state: {
@@ -85,6 +87,8 @@ describe("tournaments", () => {
     await assertFails(setDoc(doc(db("alice"), "tournaments", "abc123"), { ...tournament("alice"), code: "abc123" }));
     await assertFails(setDoc(doc(db("alice"), "tournaments", CODE), { ...tournament("alice"), admin: true }));
     await assertFails(setDoc(doc(db("alice"), "tournaments", CODE), { ...tournament("alice"), name: "x".repeat(61) }));
+    await assertFails(setDoc(doc(db("alice"), "tournaments", CODE), { ...tournament("alice"), pointsToWin: 10 }));
+    await assertFails(setDoc(doc(db("alice"), "tournaments", CODE), { ...tournament("alice"), matchLength: "best_of_5" }));
   });
 
   it("can be fetched by code but never listed", async () => {
@@ -99,6 +103,8 @@ describe("tournaments", () => {
     await assertSucceeds(updateDoc(ref, { name: "Renamed" }));
     await assertSucceeds(updateDoc(ref, { "state.doubles.teamsConfirmed": true }));
     await assertFails(updateDoc(ref, { format: "knockout" }));
+    await assertFails(updateDoc(ref, { pointsToWin: 11 }));
+    await assertFails(updateDoc(ref, { matchLength: "single" }));
     await assertFails(updateDoc(ref, { createdBy: "bob" }));
     await assertFails(updateDoc(ref, { "state.singles.phase": "finished" }));
   });

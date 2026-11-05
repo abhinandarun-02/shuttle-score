@@ -4,6 +4,7 @@ import {
   emptyCategoryState,
   isRealParticipant,
   MIN_PARTICIPANTS,
+  scoringRulesOf,
   type Category,
   type CategoryState,
   type Format,
@@ -79,6 +80,7 @@ export function buildCategoryView(
     return names.get(id) ?? "Unknown";
   };
 
+  const rules = scoringRulesOf(tournament);
   const matches = sortMatches(allMatches.filter((m) => m.category === category));
   const visibleMatches = matches.filter((m) => !m.bye);
   const groupMatches = matches.filter((m) => m.stage === "group");
@@ -101,7 +103,7 @@ export function buildCategoryView(
         const sortedIds = [...ids].sort((x, y) => (order.get(x) ?? 0) - (order.get(y) ?? 0));
         return {
           index,
-          rows: computeStandings(sortedIds, inGroup),
+          rows: computeStandings(sortedIds, inGroup, rules),
           complete: inGroup.every((m) => m.status === "completed"),
         };
       });
@@ -109,7 +111,7 @@ export function buildCategoryView(
 
   const roundRobin = matches.filter((m) => m.stage === "rr");
   const standings =
-    format === "round_robin" ? computeStandings(participants.map((p) => p.id), roundRobin) : [];
+    format === "round_robin" ? computeStandings(participants.map((p) => p.id), roundRobin, rules) : [];
 
   let championId: string | null = null;
   let complete = false;
