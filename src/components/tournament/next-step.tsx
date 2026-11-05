@@ -59,7 +59,7 @@ function StepCard({
   return (
     <section
       className={cn(
-        "animate-rise rounded-3xl p-5",
+        "animate-rise min-w-0 overflow-hidden rounded-3xl p-5",
         tone === "brand" ? "bg-primary text-primary-foreground" : "bg-card ring-1 ring-border",
       )}
     >
@@ -76,7 +76,7 @@ function StepCard({
           <p className={cn("text-[12px] font-semibold tracking-wide uppercase", tone === "brand" ? "opacity-70" : "text-muted-foreground")}>
             {eyebrow}
           </p>
-          <h2 className="mt-0.5 text-[17px] leading-snug font-semibold tracking-tight">{title}</h2>
+          <h2 className="mt-0.5 text-[17px] leading-snug font-semibold tracking-tight break-words">{title}</h2>
         </div>
       </div>
       {children && <div className="mt-4">{children}</div>}
@@ -176,26 +176,36 @@ export function ChampionCard() {
 function MatchLine({ match }: { match: Match }) {
   const { view, href } = useTournament();
   const ctx = roundContext(view.matches);
-  const nameA = view.nameOf(match.a);
-  const nameB = view.nameOf(match.b);
+  const sides = [
+    { id: match.a, name: view.nameOf(match.a) },
+    { id: match.b, name: view.nameOf(match.b) },
+  ];
+  const meta = [roundLabel(match, ctx), match.court ? `Court ${match.court}` : null].filter(Boolean).join(" · ");
   return (
     <Link
       href={href(`/m/${match.id}`)}
-      className="group flex items-center gap-3 rounded-2xl bg-muted/80 px-3 py-3 ring-1 ring-border transition-colors hover:bg-muted active:scale-[0.99]"
+      aria-label={`${sides[0].name} versus ${sides[1].name}, ${meta}`}
+      className="group flex items-center gap-3 rounded-2xl bg-muted/80 px-3 py-2.5 ring-1 ring-border transition-colors hover:bg-muted active:scale-[0.99]"
     >
-      <div className="flex shrink-0 -space-x-2">
-        <SideMark id={match.a} name={nameA} className="size-9 rounded-xl text-[12px] ring-2 ring-card" />
-        <SideMark id={match.b} name={nameB} className="size-9 rounded-xl text-[12px] ring-2 ring-card" />
-      </div>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-[15px] font-semibold tracking-tight">
-          {nameA}
-          <span className="mx-1.5 text-[12px] font-medium tracking-wide text-muted-foreground">vs</span>
-          {nameB}
-        </p>
-        <p className="mt-0.5 text-[12px] text-muted-foreground">
-          {roundLabel(match, ctx)}
-          {match.court ? ` · Court ${match.court}` : ""}
+        <div className="grid gap-1">
+          {sides.map((side, index) => (
+            <div key={`${side.id ?? "open"}-${index}`} className="flex min-w-0 items-center gap-2">
+              <SideMark id={side.id} name={side.name} className="size-7 rounded-lg text-[11px]" />
+              <span
+                className={cn(
+                  "min-w-0 flex-1 truncate text-[14px] font-semibold tracking-tight",
+                  side.id === null && "font-medium text-muted-foreground italic",
+                )}
+                title={side.name}
+              >
+                {side.name}
+              </span>
+            </div>
+          ))}
+        </div>
+        <p className="mt-1 truncate pl-9 text-[12px] text-muted-foreground" title={meta}>
+          {meta}
         </p>
       </div>
       <span className="grid size-8 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground transition-transform duration-200 group-hover:translate-x-0.5">
