@@ -38,11 +38,21 @@ export function HomeScreen() {
             Draw fixtures, keep live scores and crown a champion. Everyone with the link sees every point as it happens.
           </p>
 
-          <div className="mt-8 grid max-w-md gap-3">
-            <Button size="2xl" className="w-full shadow-[0_10px_30px_-10px_var(--primary)]" render={<Link href="/new" />} nativeButton={false}>
+          <div className="mt-10 flex max-w-md flex-col">
+            <Button
+              size="2xl"
+              className="w-full shadow-[0_18px_36px_-22px_var(--primary)]"
+              render={<Link href="/new" />}
+              nativeButton={false}
+            >
               <PlusIcon />
               Create tournament
             </Button>
+            <div className="my-7 flex items-center gap-4" aria-hidden>
+              <span className="h-px flex-1 bg-border" />
+              <span className="text-[12px] font-medium tracking-[0.16em] text-muted-foreground uppercase">or</span>
+              <span className="h-px flex-1 bg-border" />
+            </div>
             <JoinForm />
           </div>
         </section>
