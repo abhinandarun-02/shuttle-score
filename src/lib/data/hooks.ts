@@ -1,7 +1,7 @@
 "use client";
 
 import { onSnapshot } from "firebase/firestore";
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { toast } from "sonner";
 import type { GameScore, Match, Player, ScoringRules, Side, Team, Tournament } from "@/lib/domain/types";
 import { ensureAuth } from "@/lib/firebase/client";
@@ -143,14 +143,38 @@ interface QueuedOp {
   committed: number | null;
 }
 
+/** Ops still ahead of the server snapshot — the ones the on-screen score is built from. */
+function appliedOps(items: readonly QueuedOp[], version: number): ScoreOp[] {
+  const ops: ScoreOp[] = [];
+  for (const item of items) {
+    if (item.committed === null || item.committed > version) ops.push(item.op);
+  }
+  return ops;
+}
+
+function sameVisibleQueue(prev: readonly QueuedOp[], next: readonly QueuedOp[], version: number): boolean {
+  if ((prev.length > 0) !== (next.length > 0)) return false;
+  const a = appliedOps(prev, version);
+  const b = appliedOps(next, version);
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
+}
+
 export function useMatchScorer(code: string, match: Match | null, rules: ScoringRules) {
   const [items, setItems] = useState<QueuedOp[]>([]);
   const queue = useRef<QueuedOp[]>([]);
   const running = useRef(false);
   const knownVersion = useRef(0);
   const latest = useRef(match);
-  const rulesRef = useRef(rules);
-  rulesRef.current = rules;
+
+  const publish = useCallback(() => {
+    setItems((prev) => {
+      const version = latest.current?.version ?? 0;
+      const next = queue.current;
+      return sameVisibleQueue(prev, next, version) ? prev : next.slice();
+    });
+  }, []);
 
   useEffect(() => {
     latest.current = match;
@@ -158,8 +182,8 @@ export function useMatchScorer(code: string, match: Match | null, rules: Scoring
     if (match.version > knownVersion.current) knownVersion.current = match.version;
     const before = queue.current.length;
     queue.current = queue.current.filter((q) => q.committed === null || q.committed > match.version);
-    if (queue.current.length !== before) setItems([...queue.current]);
-  }, [match]);
+    if (queue.current.length !== before) publish();
+  }, [match, publish]);
 
   const pump = useCallback(async () => {
     if (running.current) return;
@@ -176,11 +200,11 @@ export function useMatchScorer(code: string, match: Match | null, rules: Scoring
           next.committed = version;
           const seen = latest.current?.version ?? 0;
           queue.current = queue.current.filter((q) => q.committed === null || q.committed > seen);
-          setItems([...queue.current]);
+          publish();
         } catch (err) {
           queue.current = [];
-          setItems([]);
           knownVersion.current = 0;
+          publish();
           if (err instanceof ScoreConflictError) toast.warning(err.message);
           else toast.error(describeError(err));
         }
@@ -188,7 +212,7 @@ export function useMatchScorer(code: string, match: Match | null, rules: Scoring
     } finally {
       running.current = false;
     }
-  }, [code]);
+  }, [code, publish]);
 
   const submit = useCallback(
     (op: ScoreOp) => {
@@ -196,17 +220,17 @@ export function useMatchScorer(code: string, match: Match | null, rules: Scoring
       if (!current) return false;
       try {
         let preview = current;
-        for (const q of [...queue.current, { op, committed: null }]) preview = applyOp(preview, q.op, rulesRef.current);
+        for (const q of [...queue.current, { op, committed: null }]) preview = applyOp(preview, q.op, rules);
       } catch (err) {
         toast.error(describeError(err));
         return false;
       }
       queue.current.push({ op, committed: null });
-      setItems([...queue.current]);
+      publish();
       void pump();
       return true;
     },
-    [pump],
+    [pump, publish, rules],
   );
 
   let display = match;
@@ -220,12 +244,15 @@ export function useMatchScorer(code: string, match: Match | null, rules: Scoring
     }
   }
 
-  return {
-    match: display,
-    syncing: items.length > 0,
-    point: (side: Side) => submit({ type: "point", side }),
-    undo: () => submit({ type: "undo" }),
-    correct: (games: GameScore[]) => submit({ type: "correct", games }),
-    end: (winner: Side) => submit({ type: "end", winner }),
-  };
+  const syncing = items.length > 0;
+
+  const point = useCallback((side: Side) => submit({ type: "point", side }), [submit]);
+  const undo = useCallback(() => submit({ type: "undo" }), [submit]);
+  const correct = useCallback((games: GameScore[]) => submit({ type: "correct", games }), [submit]);
+  const end = useCallback((winner: Side) => submit({ type: "end", winner }), [submit]);
+
+  return useMemo(
+    () => ({ match: display, syncing, point, undo, correct, end }),
+    [display, syncing, point, undo, correct, end],
+  );
 }
