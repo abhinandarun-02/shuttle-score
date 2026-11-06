@@ -2,7 +2,7 @@
 
 import { ArrowLeftIcon, CloudOffIcon, FlagIcon, MapPinIcon, MinusIcon, PencilIcon, PlusIcon, RotateCcwIcon, TrophyIcon } from "lucide-react";
 import Link from "next/link";
-import { use, useEffect, useState } from "react";
+import { memo, use, useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { BottomSheet } from "@/components/bottom-sheet";
 import { ShuttleGlyph } from "@/components/logo";
@@ -30,16 +30,20 @@ import { cn } from "@/lib/utils";
 
 export function ScoringRoute({ params }: { params: Promise<{ code: string; matchId: string }> }) {
   const { matchId } = use(params);
-  const { matches, code, href, tournament } = useTournament();
-  const rules = scoringRulesOf(tournament);
+  const { matches, code, href, tournament, view } = useTournament();
+  const rules = useMemo(() => scoringRulesOf(tournament), [tournament]);
   const server = matches.find((m) => m.id === matchId) ?? null;
   const scorer = useMatchScorer(code, server, rules);
   const match = scorer.match;
   const { point, undo } = scorer;
+  const scoreKey = match
+    ? `${match.id}:${match.status}:${match.winner}:${match.undo.length}:${match.court}:${match.games.map((g) => `${g.a}-${g.b}`).join(",")}`
+    : "";
 
   useEffect(() => {
+    if (!scoreKey) return;
     const onKey = (e: KeyboardEvent) => {
-      if (!match || e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
       const tag = (e.target as HTMLElement)?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA") return;
       if (e.key === "1" || e.key === "a" || e.key === "A") {
@@ -55,7 +59,7 @@ export function ScoringRoute({ params }: { params: Promise<{ code: string; match
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [match, point, undo]);
+  }, [scoreKey, point, undo]);
 
   if (!server || !match) {
     return (
@@ -67,7 +71,18 @@ export function ScoringRoute({ params }: { params: Promise<{ code: string; match
     );
   }
 
-  return <ScoringView match={match} scorer={scorer} back={href()} rules={rules} />;
+  return (
+    <ScoringView
+      match={match}
+      scorer={scorer}
+      back={href()}
+      rules={rules}
+      code={code}
+      nameA={view.nameOf(match.a)}
+      nameB={view.nameOf(match.b)}
+      round={roundLabel(match, roundContext(matches))}
+    />
+  );
 }
 
 function Message({ back, title, body }: { back: string; title: string; body: string }) {
@@ -86,39 +101,78 @@ function Message({ back, title, body }: { back: string; title: string; body: str
   );
 }
 
-function ScoringView({
+function sameGames(a: readonly GameScore[], b: readonly GameScore[]): boolean {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i].a !== b[i].a || a[i].b !== b[i].b) return false;
+  return true;
+}
+
+/** Ignore version and timestamps so a confirmed save does not repaint an unchanged score. */
+function sameMatchView(a: Match, b: Match): boolean {
+  return (
+    a.id === b.id &&
+    a.stage === b.stage &&
+    a.round === b.round &&
+    a.group === b.group &&
+    a.slot === b.slot &&
+    a.status === b.status &&
+    a.winner === b.winner &&
+    a.bye === b.bye &&
+    a.endedEarly === b.endedEarly &&
+    a.court === b.court &&
+    a.a === b.a &&
+    a.b === b.b &&
+    a.undo.length === b.undo.length &&
+    sameGames(a.games, b.games)
+  );
+}
+
+const ScoringView = memo(function ScoringView({
   match,
   scorer,
   back,
   rules,
+  code,
+  nameA,
+  nameB,
+  round,
 }: {
   match: Match;
   scorer: ReturnType<typeof useMatchScorer>;
   back: string;
   rules: ScoringRules;
+  code: string;
+  nameA: string;
+  nameB: string;
+  round: string;
 }) {
-  const { view, code } = useTournament();
   const online = useOnline();
   const [correctOpen, setCorrectOpen] = useState(false);
   const [endOpen, setEndOpen] = useState(false);
   const [courtOpen, setCourtOpen] = useState(false);
-  const ctx = roundContext(view.matches);
   const finished = match.status === "completed";
   const waiting = match.status === "waiting" || match.bye;
   const canScore = !finished && !waiting && online;
   const game = currentGame(match.games);
   const gameNo = currentGameNumber(match.games);
   const won = gamesWon(match.games, rules);
-  const previous = match.games.filter((g) => gameWinner(g, rules));
+  const previous = useMemo(() => match.games.filter((g) => gameWinner(g, rules)), [match.games, rules]);
   const singleGame = rules.matchLength === "single";
   const gameSlots = gamesNeeded(rules.matchLength);
   const headlineA = finished && !singleGame ? won.a : game.a;
   const headlineB = finished && !singleGame ? won.b : game.b;
-  const detailGames = finished ? (singleGame ? [] : match.games) : previous;
+  const detailGames = finished ? (singleGame ? EMPTY_GAMES : match.games) : previous;
 
-  const point = (side: Side) => {
-    if (scorer.point(side)) navigator.vibrate?.(12);
-  };
+  const { point } = scorer;
+  const addPoint = useCallback(
+    (side: Side) => {
+      if (point(side)) navigator.vibrate?.(12);
+    },
+    [point],
+  );
+  const pointA = useCallback(() => addPoint("A"), [addPoint]);
+  const pointB = useCallback(() => addPoint("B"), [addPoint]);
 
   return (
     <div className="flex h-dvh flex-col overflow-hidden">
@@ -129,7 +183,7 @@ function ScoringView({
           </Button>
           <div className="min-w-0 flex-1">
             <p className="truncate text-[15px] font-semibold tracking-tight">
-              {roundLabel(match, ctx)}
+              {round}
               {singleGame && (
                 <span className="ml-2 font-mono text-[12px] font-medium text-muted-foreground tabular-nums">
                   to {rules.pointsToWin}
@@ -162,10 +216,11 @@ function ScoringView({
             Offline — scoring resumes when you reconnect.
           </div>
         )}
+        <SavingIndicator syncing={scorer.syncing} />
       </header>
 
       <main className="mx-auto flex w-full max-w-lg min-h-0 flex-1 flex-col gap-3 px-3 pt-1 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-        {(!singleGame || previous.length > 0 || scorer.syncing) && (
+        {(!singleGame || previous.length > 0) && (
           <div className="flex flex-wrap items-center justify-center gap-1.5">
             {!singleGame && (
               <div className="flex items-center gap-2 rounded-full bg-card px-3 py-1.5 ring-1 ring-foreground/10" aria-label={finished ? "Match" : `Game ${gameNo}`}>
@@ -188,7 +243,6 @@ function ScoringView({
                 {g.a}–{g.b}
               </span>
             ))}
-            {scorer.syncing && <span className="text-[12px] font-medium text-muted-foreground">Saving…</span>}
           </div>
         )}
 
@@ -202,14 +256,14 @@ function ScoringView({
           <div className="relative grid min-h-0 flex-1 grid-rows-2 gap-2.5">
             <SideCourt
               side="A"
-              name={view.nameOf(match.a)}
+              name={nameA}
               score={headlineA}
               games={detailGames}
               winner={match.winner === "A"}
               dim={finished && match.winner !== "A"}
               canScore={canScore}
               showGamesWon={finished && !singleGame}
-              onPoint={() => point("A")}
+              onPoint={pointA}
             />
             <div className="pointer-events-none absolute inset-x-0 top-1/2 z-10 flex -translate-y-1/2 justify-center">
               <span className="rounded-full bg-background px-2.5 py-1 text-[10px] font-bold tracking-[0.18em] text-muted-foreground ring-1 ring-border">
@@ -218,14 +272,14 @@ function ScoringView({
             </div>
             <SideCourt
               side="B"
-              name={view.nameOf(match.b)}
+              name={nameB}
               score={headlineB}
               games={detailGames}
               winner={match.winner === "B"}
               dim={finished && match.winner !== "B"}
               canScore={canScore}
               showGamesWon={finished && !singleGame}
-              onPoint={() => point("B")}
+              onPoint={pointB}
             />
           </div>
         )}
@@ -239,7 +293,7 @@ function ScoringView({
               <p className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
                 {match.endedEarly ? "Match awarded" : "Match won"}
               </p>
-              <p className="truncate font-semibold tracking-tight">{view.nameOf(match.winner === "A" ? match.a : match.b)}</p>
+              <p className="truncate font-semibold tracking-tight">{match.winner === "A" ? nameA : nameB}</p>
             </div>
             <p className="font-mono text-sm text-muted-foreground tabular-nums">
               {match.games.filter((g) => gameWinner(g, rules) || g.a + g.b > 0).map((g) => `${g.a}–${g.b}`).join(" · ") || "—"}
@@ -271,7 +325,7 @@ function ScoringView({
       <EndSheet
         open={endOpen}
         onOpenChange={setEndOpen}
-        names={{ A: view.nameOf(match.a), B: view.nameOf(match.b) }}
+        names={{ A: nameA, B: nameB }}
         onPick={(side) => {
           scorer.end(side);
           setEndOpen(false);
@@ -280,9 +334,43 @@ function ScoringView({
       <CourtSheet open={courtOpen} onOpenChange={setCourtOpen} match={match} code={code} />
     </div>
   );
+}, (prev, next) => {
+  return (
+    prev.back === next.back &&
+    prev.code === next.code &&
+    prev.nameA === next.nameA &&
+    prev.nameB === next.nameB &&
+    prev.round === next.round &&
+    prev.rules === next.rules &&
+    prev.scorer.syncing === next.scorer.syncing &&
+    prev.scorer.point === next.scorer.point &&
+    prev.scorer.undo === next.scorer.undo &&
+    prev.scorer.correct === next.scorer.correct &&
+    prev.scorer.end === next.scorer.end &&
+    sameMatchView(prev.match, next.match)
+  );
+});
+
+function SavingIndicator({ syncing }: { syncing: boolean }) {
+  return (
+    <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex translate-y-1/2 justify-center">
+      <span
+        className={cn(
+          "rounded-full bg-card px-2.5 py-0.5 text-[12px] font-medium text-muted-foreground ring-1 ring-foreground/10 transition-opacity duration-150",
+          syncing ? "opacity-100" : "opacity-0",
+        )}
+        aria-hidden
+      >
+        Saving…
+      </span>
+      <span className="sr-only" aria-live="polite">
+        {syncing ? "Saving score" : ""}
+      </span>
+    </div>
+  );
 }
 
-function SideCourt({
+const SideCourt = memo(function SideCourt({
   side,
   name,
   score,
@@ -361,7 +449,21 @@ function SideCourt({
       </div>
     </button>
   );
-}
+}, (prev, next) => {
+  return (
+    prev.side === next.side &&
+    prev.name === next.name &&
+    prev.score === next.score &&
+    prev.winner === next.winner &&
+    prev.dim === next.dim &&
+    prev.canScore === next.canScore &&
+    prev.showGamesWon === next.showGamesWon &&
+    prev.onPoint === next.onPoint &&
+    sameGames(prev.games, next.games)
+  );
+});
+
+const EMPTY_GAMES: GameScore[] = [];
 
 function gamesForEditing(match: Match, rules: ScoringRules): GameScore[] {
   const games = (match.games.length ? match.games : [{ a: 0, b: 0 }]).map((g) => ({ ...g }));
