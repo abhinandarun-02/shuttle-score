@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRightIcon, PlusIcon, XIcon } from "lucide-react";
+import { ArrowRightIcon, PlusIcon, UsersIcon, XIcon } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useSyncExternalStore, type FormEvent } from "react";
@@ -10,6 +10,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { timeAgo } from "@/lib/clipboard";
 import { CODE_LENGTH, isValidCode, normalizeCode } from "@/lib/domain/codes";
+import { useDirectory } from "@/lib/people";
 import { forgetTournament, useRecentTournaments } from "@/lib/recent";
 import { cn } from "@/lib/utils";
 
@@ -68,6 +69,7 @@ export function HomeScreen() {
       </main>
 
       <div className="relative border-t border-border/80 bg-surface/55">
+        <PeopleEntry />
         <RecentTournaments />
         <footer className="pb-safe">
           <p className="mx-auto max-w-6xl px-5 py-5 text-[13px] text-muted-foreground">
@@ -139,6 +141,42 @@ function JoinForm() {
   );
 }
 
+function PeopleEntry() {
+  const directory = useDirectory();
+  const ready = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
+  const people = directory.people.length;
+  const groups = directory.groups.length;
+  const detail =
+    ready && people > 0
+      ? groups > 0
+        ? `${people} saved · ${groups} ${groups === 1 ? "group" : "groups"}`
+        : `${people} saved`
+      : "Names and groups for the next tournament";
+
+  return (
+    <section className="mx-auto w-full max-w-6xl px-5 pt-8">
+      <h2 className="mb-3 text-[13px] font-medium tracking-wide text-muted-foreground uppercase">People</h2>
+      <Link
+        href="/people"
+        className="flex items-center gap-3 rounded-2xl bg-card p-4 ring-1 ring-border transition-all hover:ring-foreground/20 active:scale-[0.99]"
+      >
+        <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-muted text-foreground/80">
+          <UsersIcon className="size-5" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block font-medium">Saved people</span>
+          <span className="block text-[13px] text-muted-foreground">{detail}</span>
+        </span>
+        <ArrowRightIcon className="size-4 text-muted-foreground" />
+      </Link>
+    </section>
+  );
+}
+
 function RecentTournaments() {
   const recent = useRecentTournaments();
   const hydrated = useSyncExternalStore(
@@ -148,7 +186,7 @@ function RecentTournaments() {
   );
   if (!hydrated || !recent.length) return null;
   return (
-    <section className="mx-auto w-full max-w-6xl px-5 pt-8 pb-2">
+    <section className="mx-auto w-full max-w-6xl px-5 pt-6 pb-2">
       <h2 className="mb-3 text-[13px] font-medium tracking-wide text-muted-foreground uppercase">Recent</h2>
       <ul className={cn("grid gap-2 sm:grid-cols-2", recent.length > 2 && "lg:grid-cols-3")}>
         {recent.map((t) => (

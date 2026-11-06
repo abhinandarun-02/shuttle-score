@@ -34,6 +34,7 @@ import { describeError } from "@/lib/data/refs";
 import { saveTeams, setTeamsConfirmed } from "@/lib/data/teams";
 import { pairPlayers } from "@/lib/domain/teams";
 import { CATEGORY_LABELS, MIN_PARTICIPANTS, type Player } from "@/lib/domain/types";
+import { personKey, rememberNames, useDirectory } from "@/lib/people";
 import { cn } from "@/lib/utils";
 
 export function PlayersScreen() {
@@ -109,7 +110,12 @@ function PlayersSection() {
   return (
     <section>
       <SectionHeader title="Players" count={view.players.length} />
-      {open && <AddPlayersForm />}
+      {open && (
+        <div className="space-y-4">
+          <SavedPeoplePicker />
+          <AddPlayersForm />
+        </div>
+      )}
       {view.players.length === 0 ? (
         <div className="mt-3 rounded-3xl border-2 border-dashed px-6 py-10 text-center">
           <p className="font-medium">No players yet</p>
@@ -158,8 +164,12 @@ function AddPlayersForm() {
     setBusy(true);
     try {
       await addPlayers(code, view.category, names, view.players.length);
+      const remembered = rememberNames(names);
       setValue("");
       if (names.length > 1) toast.success(`Added ${names.length} players`);
+      if (remembered.skippedFull > 0) {
+        toast.warning("The saved list is full, so some new names weren't remembered.");
+      }
     } catch (err) {
       toast.error(describeError(err));
     } finally {
@@ -202,6 +212,121 @@ function AddPlayersForm() {
       </div>
       <p className="mt-2 pl-1 text-[13px] text-muted-foreground">Tip: paste names separated by commas or new lines.</p>
     </form>
+  );
+}
+
+function SavedPeoplePicker() {
+  const directory = useDirectory();
+  const { view, code } = useTournament();
+  const [groupId, setGroupId] = useState("all");
+  const [selected, setSelected] = useState<ReadonlySet<string>>(() => new Set());
+  const [busy, setBusy] = useState(false);
+
+  if (directory.people.length === 0) return null;
+
+  const activeGroup = directory.groups.find((group) => group.id === groupId) ?? null;
+  const taken = new Set(view.players.map((player) => personKey(player.name)));
+  const visible = directory.people
+    .filter((person) => !taken.has(personKey(person.name)))
+    .filter((person) => !activeGroup || activeGroup.memberIds.includes(person.id))
+    .toSorted((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
+  const chosen = directory.people.filter((person) => selected.has(person.id) && !taken.has(personKey(person.name)));
+
+  const toggle = (id: string) => {
+    setSelected((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const addSelected = async () => {
+    const names = parseNames(
+      chosen.map((person) => person.name).join("\n"),
+      view.players.map((player) => player.name),
+    );
+    if (!names.length) return;
+    setBusy(true);
+    try {
+      await addPlayers(code, view.category, names, view.players.length);
+      setSelected(new Set());
+      if (names.length > 1) toast.success(`Added ${names.length} players`);
+    } catch (err) {
+      toast.error(describeError(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div>
+      <p className="mb-2 text-[13px] font-medium tracking-wide text-muted-foreground uppercase">Saved</p>
+      {directory.groups.length > 0 && (
+        <div className="-mx-1 mb-3 flex gap-2 overflow-x-auto px-1 pb-1">
+          <FilterPill active={!activeGroup} onClick={() => setGroupId("all")}>
+            All
+          </FilterPill>
+          {directory.groups.map((group) => (
+            <FilterPill key={group.id} active={activeGroup?.id === group.id} onClick={() => setGroupId(group.id)}>
+              {group.name}
+            </FilterPill>
+          ))}
+        </div>
+      )}
+      {visible.length === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          {activeGroup ? "No one left in this group to add." : "Everyone saved is already in this category."}
+        </p>
+      ) : (
+        <ul className="grid max-h-64 gap-1.5 overflow-y-auto">
+          {visible.map((person) => {
+            const checked = selected.has(person.id);
+            return (
+              <li key={person.id}>
+                <button
+                  type="button"
+                  aria-pressed={checked}
+                  onClick={() => toggle(person.id)}
+                  className="flex h-12 w-full items-center gap-3 rounded-2xl bg-card px-3 text-left ring-1 ring-border"
+                >
+                  <span
+                    className={cn(
+                      "grid size-5 shrink-0 place-items-center rounded-md ring-1",
+                      checked ? "bg-primary text-primary-foreground ring-primary" : "bg-background ring-border",
+                    )}
+                  >
+                    {checked && <CheckIcon className="size-3.5" />}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate font-medium">{person.name}</span>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      {chosen.length > 0 && (
+        <Button type="button" size="xl" className="mt-3 w-full" disabled={busy} onClick={() => void addSelected()}>
+          {busy ? <Loader2Icon className="animate-spin" /> : `Add ${chosen.length}`}
+        </Button>
+      )}
+    </div>
+  );
+}
+
+function FilterPill({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      aria-pressed={active}
+      onClick={onClick}
+      className={cn(
+        "h-9 shrink-0 rounded-full px-3.5 text-sm font-medium ring-1 transition-colors",
+        active ? "bg-primary text-primary-foreground ring-primary" : "bg-card text-foreground ring-border hover:bg-muted",
+      )}
+    >
+      {children}
+    </button>
   );
 }
 

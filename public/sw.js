@@ -1,10 +1,10 @@
-const CACHE = "shuttle-shell-v1";
+const CACHE = "shuttle-shell-v2";
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches
       .open(CACHE)
-      .then((cache) => cache.addAll(["/", "/new"]))
+      .then((cache) => cache.addAll(["/", "/new", "/people"]))
       .then(() => self.skipWaiting()),
   );
 });
