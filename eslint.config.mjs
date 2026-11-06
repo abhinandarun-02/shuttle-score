@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Separate Node app; it is not part of the Next.js tournament UI.
+    "expense-tracker/**",
   ]),
 ]);
 

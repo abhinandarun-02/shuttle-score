@@ -1,0 +1,10 @@
+{
+  "name": "expense-tracker",
+  "private": true,
+  "type": "module",
+  "description": "Personal expense ledger stored in a local JSON file.",
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test"
+  }
+}

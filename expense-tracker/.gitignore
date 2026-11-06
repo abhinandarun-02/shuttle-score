@@ -1,0 +1,3 @@
+# The ledger is personal data. Keep it on this machine.
+data/*.json
+data/*.tmp

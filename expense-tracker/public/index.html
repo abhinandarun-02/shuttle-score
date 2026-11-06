@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Expenses</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="wrap">
+      <header>
+        <div>
+          <p class="eyebrow">Personal ledger</p>
+          <h1>Expenses</h1>
+        </div>
+        <!-- The dashboard always shows one calendar month. -->
+        <div class="month-nav">
+          <button type="button" id="prev-month" aria-label="Previous month">Prev</button>
+          <h2 id="month-label">This month</h2>
+          <button type="button" id="next-month" aria-label="Next month">Next</button>
+        </div>
+      </header>
+
+      <div class="grid">
+        <section class="card" aria-labelledby="summary-heading">
+          <h2 id="summary-heading">This month</h2>
+          <p class="total" id="month-total">0.00</p>
+          <p class="caption">spent, by category</p>
+          <ul id="by-category" class="categories"></ul>
+          <p id="empty-summary" class="empty">Nothing recorded this month.</p>
+        </section>
+
+        <section class="card" aria-labelledby="add-heading">
+          <h2 id="add-heading">Add an entry</h2>
+          <form id="add-form">
+            <label>
+              Amount
+              <input name="amount" inputmode="decimal" autocomplete="off" required placeholder="0.00" />
+            </label>
+            <label>
+              Category
+              <input name="category" list="categories" required maxlength="40" placeholder="Food" />
+            </label>
+            <datalist id="categories"></datalist>
+            <label>
+              Date
+              <input name="date" type="date" required />
+            </label>
+            <label>
+              Note <span class="optional">optional</span>
+              <input name="note" maxlength="280" autocomplete="off" />
+            </label>
+            <p id="form-error" class="error" role="alert"></p>
+            <button type="submit" class="primary">Add entry</button>
+          </form>
+        </section>
+      </div>
+
+      <section class="card entries" aria-labelledby="entries-heading">
+        <h2 id="entries-heading">Entries</h2>
+        <ul id="entries"></ul>
+        <p id="empty-entries" class="empty">Add an entry to see it here.</p>
+      </section>
+    </div>
+    <script src="/app.js" type="module"></script>
+  </body>
+</html>
